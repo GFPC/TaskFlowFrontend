@@ -113,9 +113,6 @@ import { Separator } from "@/components/ui/separator"
       onNodesChangeState(changes)
       const hasPosChange = changes.some(c => c.type === 'position' && (c as any).dragging === false)
       if (hasPosChange) {
-        // Use the functional update to get the latest nodes if needed, 
-        // but here we can just pass the current nodes array from state
-        // ReactFlow applyNodeChanges updates the state, but we need the final result
         setNodes((nds) => {
           debouncedSave(nds)
           return nds

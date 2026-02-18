@@ -20,7 +20,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { tasks as tasksApi, ApiError } from "@/lib/api";
+import { Badge } from "@/components/ui/badge";
+import { tasks as tasksApi } from "@/lib/api";
 import { toast } from "sonner";
 import { useParams } from "next/navigation";
 
@@ -116,7 +117,7 @@ function DependencyEdgeComponent({
               )}>
                 {actions.length > 0 ? (
                   <div className="flex -space-x-1 items-center">
-                    {actions.map((action: Action) => (
+                    {actions.map((action: any) => (
                       <div key={action.id} className="bg-background rounded-full p-0.5 border border-primary/20 shadow-sm">
                         {action.type === 'notify_assignee' && <Bell className="h-3 w-3 text-primary" />}
                         {action.type === 'notify_creator' && <User className="h-3 w-3 text-blue-500" />}
@@ -141,7 +142,7 @@ function DependencyEdgeComponent({
                   <p className="text-xs text-muted-foreground italic text-center py-2 bg-muted/30 rounded">Нет действий</p>
                 )}
                 <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                  {actions.map((action: Action) => (
+                  {actions.map((action: any) => (
                     <div key={action.id} className="flex items-center justify-between bg-muted/50 p-2 rounded text-xs group">
                       <div className="flex items-center gap-2">
                         {action.type === 'notify_assignee' && <Bell className="h-3.5 w-3.5 text-primary" />}
@@ -162,17 +163,6 @@ function DependencyEdgeComponent({
                         variant="ghost" 
                         size="icon" 
                         className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => handleRemoveAction(action.id)}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-6 w-6 text-destructive"
                         onClick={() => handleRemoveAction(action.id)}
                       >
                         <Trash2 className="h-3 w-3" />
