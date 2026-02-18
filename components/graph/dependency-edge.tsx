@@ -6,7 +6,6 @@ import {
   EdgeLabelRenderer,
   getBezierPath,
   type EdgeProps,
-  useReactFlow,
   type Edge,
 } from "reactflow";
 import { Bell, User, Clock, RefreshCw, Plus, Trash2, Loader2 } from "lucide-react";
@@ -47,7 +46,7 @@ function DependencyEdgeComponent({
   markerEnd,
   data,
   selected,
-}: EdgeProps<Edge<DependencyEdgeData>>) {
+}: EdgeProps<DependencyEdgeData>) {
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,

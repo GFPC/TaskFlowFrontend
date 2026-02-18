@@ -15,7 +15,7 @@ __turbopack_context__.n(__turbopack_context__.i("[project]/app/(app)/layout.tsx 
 }),
 "[project]/app/(app)/projects/[slug]/graph/page.tsx [app-rsc] (ecmascript)", ((__turbopack_context__, module, exports) => {
 
-const e = new Error("Could not parse module '[project]/app/(app)/projects/[slug]/graph/page.tsx'\n\nReturn statement is not allowed here");
+const e = new Error("Could not parse module '[project]/app/(app)/projects/[slug]/graph/page.tsx'\n\nUnterminated template");
 e.code = 'MODULE_UNPARSABLE';
 throw e;
 }),

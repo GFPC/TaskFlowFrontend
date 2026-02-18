@@ -15,15 +15,13 @@ import ReactFlow, {
   type Node,
   type Edge,
   Panel,
-  applyNodeChanges,
-  applyEdgeChanges,
   type NodeChange,
   type EdgeChange,
 } from "reactflow"
 import "reactflow/dist/style.css"
 import { tasks as tasksApi, type GraphData } from "@/lib/api"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Plus, Loader2, Save, Filter, RefreshCw, LayoutGrid } from "lucide-react"
+import { ArrowLeft, Plus, Loader2, RefreshCw, LayoutGrid, Filter } from "lucide-react"
 import { TaskNode } from "@/components/graph/task-node"
 import { DependencyEdge } from "@/components/graph/dependency-edge"
 import { TaskDetailDialog } from "@/components/graph/task-detail-dialog"
@@ -32,6 +30,34 @@ import { toast } from "sonner"
 import { debounce } from "lodash"
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
+
+const nodeTypes = { taskNode: TaskNode }
+const edgeTypes = { dependency: DependencyEdge }
+
+function graphToNodes(graphData: GraphData): Node[] {
+  return graphData.nodes.map((n) => ({
+    id: String(n.id),
+    type: "taskNode",
+    position: n.position,
+    data: n.data,
+  }))
+}
+
+function graphToEdges(graphData: GraphData): Edge[] {
+  return graphData.edges.map((e) => ({
+    id: String(e.id),
+    source: String(e.source),
+    target: String(e.target),
+    type: "dependency",
+    animated: e.animated ?? true,
+    label: e.label,
+    markerEnd: { type: MarkerType.ArrowClosed },
+    data: { actions: e.data?.actions ?? [] },
+    style: { stroke: "hsl(var(--primary))" },
+  }))
+}
+
+export default function GraphPage() {
   const params = useParams()
   const router = useRouter()
   const slug = params.slug as string
@@ -79,7 +105,6 @@ import { Separator } from "@/components/ui/separator"
     [onEdgesChangeState, edges, slug, mutate]
   )
 
-  // Debounced auto-save for positions
   const debouncedSave = useMemo(
     () => debounce(async (nds: Node[]) => {
       const updatedGraph: GraphData = {
@@ -126,7 +151,6 @@ import { Separator } from "@/components/ui/separator"
     async (connection: Connection) => {
       if (!connection.source || !connection.target) return
       
-      // Optimistic update
       const newEdge: Edge = {
         id: `e${connection.source}-${connection.target}`,
         source: connection.source,
@@ -253,30 +277,4 @@ import { Separator } from "@/components/ui/separator"
       />
     </div>
   )
-}
-
-const nodeTypes = { taskNode: TaskNode }
-const edgeTypes = { dependency: DependencyEdge }
-
-function graphToNodes(graphData: GraphData): Node[] {
-  return graphData.nodes.map((n) => ({
-    id: String(n.id),
-    type: "taskNode",
-    position: n.position,
-    data: n.data,
-  }))
-}
-
-function graphToEdges(graphData: GraphData): Edge[] {
-  return graphData.edges.map((e) => ({
-    id: String(e.id),
-    source: String(e.source),
-    target: String(e.target),
-    type: "dependency",
-    animated: e.animated ?? true,
-    label: e.label,
-    markerEnd: { type: MarkerType.ArrowClosed },
-    data: { actions: e.data?.actions ?? [] },
-    style: { stroke: "hsl(var(--primary))" },
-  }))
 }
