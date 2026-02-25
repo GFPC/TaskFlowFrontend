@@ -43,9 +43,9 @@ export default function DashboardPage() {
               <Users className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">
+              <div className="text-2xl font-bold text-foreground">
                 {teamsLoading ? <Skeleton className="h-7 w-8 inline-block" /> : teamsList?.length ?? 0}
-              </p>
+              </div>
               <p className="text-sm text-muted-foreground">Команд</p>
             </div>
           </CardContent>
@@ -56,9 +56,9 @@ export default function DashboardPage() {
               <FolderKanban className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">
+              <div className="text-2xl font-bold text-foreground">
                 {projectsLoading ? <Skeleton className="h-7 w-8 inline-block" /> : projectsList?.length ?? 0}
-              </p>
+              </div>
               <p className="text-sm text-muted-foreground">Проектов</p>
             </div>
           </CardContent>
@@ -69,13 +69,13 @@ export default function DashboardPage() {
               <CheckCircle2 className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">
+              <div className="text-2xl font-bold text-foreground">
                 {projectsLoading ? (
                   <Skeleton className="h-7 w-8 inline-block" />
                 ) : (
                   projectsList?.reduce((acc, p) => acc + p.tasks_count, 0) ?? 0
                 )}
-              </p>
+              </div>
               <p className="text-sm text-muted-foreground">Задач</p>
             </div>
           </CardContent>

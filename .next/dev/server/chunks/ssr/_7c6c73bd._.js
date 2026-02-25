@@ -293,7 +293,7 @@ function Skeleton({ className, ...props }) {
         ...props
     }, void 0, false, {
         fileName: "[project]/components/ui/skeleton.tsx",
-        lineNumber: 5,
+        lineNumber: 6,
         columnNumber: 5
     }, this);
 }
