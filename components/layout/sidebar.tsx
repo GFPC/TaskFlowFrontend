@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -13,9 +14,17 @@ import {
   Menu,
   X,
   Bell,
+  Moon,
+  Sun,
 } from "lucide-react";
+
 import { useAuth } from "@/lib/auth-context";
+
+import { useTheme } from "next-themes";
+
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
+
 import { useState } from "react";
 
 const navigation = [
@@ -46,7 +55,7 @@ export function Sidebar() {
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-40 w-64 bg-card border-r transition-transform lg:translate-x-0",
-          isOpen ? "translate-x-0" : "-translate-x-full"
+          isOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
         <div className="flex flex-col h-full px-4 py-6">
@@ -69,7 +78,7 @@ export function Sidebar() {
                     "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
                     isActive
                       ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                   )}
                   onClick={() => setIsOpen(false)}
                 >
@@ -80,7 +89,8 @@ export function Sidebar() {
             })}
           </nav>
 
-          <div className="pt-4 border-t">
+          <div className="pt-4 border-t space-y-1">
+            <ThemeToggle />
             <Button
               variant="ghost"
               className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
