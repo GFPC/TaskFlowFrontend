@@ -1,4 +1,6 @@
-const API_BASE = process.env.TASKFLOW_API_BASE || "https://corsair-taskflow.site/api/v1";
+const API_BASE = true
+  ? "https://corsair-taskflow.site/api/v1"
+  : "http://localhost:8000/api/v1";
 
 interface TokenData {
   access_token: string;
@@ -86,10 +88,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   // Proactively refresh token if about to expire
   if (shouldRefresh()) {
     try {
@@ -161,12 +160,13 @@ export const auth = {
     password: string;
     email?: string;
     tg_username?: string;
-  }) => request<{
-    user_id: number;
-    tg_code: string;
-    requires_verification: boolean;
-    message: string;
-  }>("/auth/register", { method: "POST", body: JSON.stringify(data) }),
+  }) =>
+    request<{
+      user_id: number;
+      tg_code: string;
+      requires_verification: boolean;
+      message: string;
+    }>("/auth/register", { method: "POST", body: JSON.stringify(data) }),
 
   login: (data: { username: string; password: string }) =>
     request<{
@@ -200,7 +200,8 @@ export const auth = {
       body: JSON.stringify({ refresh_token }),
     }),
 
-  logout: () => request<{ message: string }>("/auth/logout", { method: "POST" }),
+  logout: () =>
+    request<{ message: string }>("/auth/logout", { method: "POST" }),
 
   logoutAll: () =>
     request<{ message: string }>("/auth/logout-all", { method: "POST" }),
@@ -228,17 +229,17 @@ export const auth = {
 export const users = {
   me: () => request<User>("/users/me"),
 
-  updateMe: (data: Partial<{
-    first_name: string;
-    last_name: string;
-    email: string;
-    tg_username: string;
-  }>) => request<User>("/users/me", { method: "PUT", body: JSON.stringify(data) }),
+  updateMe: (
+    data: Partial<{
+      first_name: string;
+      last_name: string;
+      email: string;
+      tg_username: string;
+    }>,
+  ) =>
+    request<User>("/users/me", { method: "PUT", body: JSON.stringify(data) }),
 
-  changePassword: (data: {
-    current_password: string;
-    new_password: string;
-  }) =>
+  changePassword: (data: { current_password: string; new_password: string }) =>
     request<{ message: string }>("/users/me/change-password", {
       method: "POST",
       body: JSON.stringify(data),
@@ -248,7 +249,8 @@ export const users = {
     mode?: string;
     primary_color?: string;
     language?: string;
-  }) => request("/users/me/theme", { method: "PUT", body: JSON.stringify(data) }),
+  }) =>
+    request("/users/me/theme", { method: "PUT", body: JSON.stringify(data) }),
 
   updateNotifications: (data: Record<string, boolean>) =>
     request("/users/me/notifications", {
@@ -276,14 +278,22 @@ export const teams = {
   create: (data: { name: string; description?: string }) =>
     request<Team>("/teams", { method: "POST", body: JSON.stringify(data) }),
 
-  update: (slug: string, data: Partial<{ name: string; description: string; avatar: string }>) =>
-    request<Team>(`/teams/${slug}`, { method: "PUT", body: JSON.stringify(data) }),
+  update: (
+    slug: string,
+    data: Partial<{ name: string; description: string; avatar: string }>,
+  ) =>
+    request<Team>(`/teams/${slug}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   delete: (slug: string) =>
     request<{ message: string }>(`/teams/${slug}`, { method: "DELETE" }),
 
   members: (slug: string, include_inactive?: boolean) =>
-    request<TeamMember[]>(`/teams/${slug}/members${include_inactive ? "?include_inactive=true" : ""}`),
+    request<TeamMember[]>(
+      `/teams/${slug}/members${include_inactive ? "?include_inactive=true" : ""}`,
+    ),
 
   addMember: (slug: string, data: { username: string; role: string }) =>
     request<TeamMember>(`/teams/${slug}/members`, {
@@ -310,18 +320,18 @@ export const teams = {
 
   getInviteCode: (slug: string, refresh?: boolean) =>
     request<{ invite_code: string; expires_at: string }>(
-      `/teams/${slug}/invite-code${refresh ? "?refresh=true" : ""}`
+      `/teams/${slug}/invite-code${refresh ? "?refresh=true" : ""}`,
     ),
 
   joinByCode: (invite_code: string) =>
     request<{ message: string; team: Team; member: TeamMember }>(
       "/teams/join-by-code",
-      { method: "POST", body: JSON.stringify({ invite_code }) }
+      { method: "POST", body: JSON.stringify({ invite_code }) },
     ),
 
   createInvitation: (
     slug: string,
-    data: { username?: string; email?: string; role: string; message?: string }
+    data: { username?: string; email?: string; role: string; message?: string },
   ) =>
     request<TeamInvitation>(`/teams/${slug}/invitations`, {
       method: "POST",
@@ -332,7 +342,7 @@ export const teams = {
 
   teamInvitations: (slug: string, status?: string) =>
     request<TeamInvitation[]>(
-      `/teams/${slug}/invitations${status ? `?status=${status}` : ""}`
+      `/teams/${slug}/invitations${status ? `?status=${status}` : ""}`,
     ),
 
   acceptInvitation: (id: number) =>
@@ -365,11 +375,13 @@ export const teams = {
 // ---- PROJECTS ----
 export const projects = {
   list: (include_archived?: boolean) =>
-    request<Project[]>(`/projects${include_archived ? "?include_archived=true" : ""}`),
+    request<Project[]>(
+      `/projects${include_archived ? "?include_archived=true" : ""}`,
+    ),
 
   byTeam: (teamSlug: string, include_archived?: boolean) =>
     request<Project[]>(
-      `/projects/team/${teamSlug}${include_archived ? "?include_archived=true" : ""}`
+      `/projects/team/${teamSlug}${include_archived ? "?include_archived=true" : ""}`,
     ),
 
   get: (slug: string) => request<ProjectDetail>(`/projects/${slug}`),
@@ -380,9 +392,19 @@ export const projects = {
     team_slug: string;
     initial_graph_data?: string;
   }) =>
-    request<Project>("/projects", { method: "POST", body: JSON.stringify(data) }),
+    request<Project>("/projects", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  update: (slug: string, data: Partial<{ name: string; description: string; settings: Record<string, unknown> }>) =>
+  update: (
+    slug: string,
+    data: Partial<{
+      name: string;
+      description: string;
+      settings: Record<string, unknown>;
+    }>,
+  ) =>
     request<Project>(`/projects/${slug}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -405,7 +427,7 @@ export const projects = {
 
   members: (slug: string, include_inactive?: boolean) =>
     request<ProjectMember[]>(
-      `/projects/${slug}/members${include_inactive ? "?include_inactive=true" : ""}`
+      `/projects/${slug}/members${include_inactive ? "?include_inactive=true" : ""}`,
     ),
 
   addMember: (slug: string, data: { username: string; role: string }) =>
@@ -458,16 +480,20 @@ export const tasks = {
       creator_username?: string;
       limit?: number;
       offset?: number;
-    }
+    },
   ) => {
     const sp = new URLSearchParams();
     if (params?.status_name) sp.set("status_name", params.status_name);
-    if (params?.assignee_username) sp.set("assignee_username", params.assignee_username);
-    if (params?.creator_username) sp.set("creator_username", params.creator_username);
+    if (params?.assignee_username)
+      sp.set("assignee_username", params.assignee_username);
+    if (params?.creator_username)
+      sp.set("creator_username", params.creator_username);
     if (params?.limit) sp.set("limit", String(params.limit));
     if (params?.offset) sp.set("offset", String(params.offset));
     const qs = sp.toString();
-    return request<Task[]>(`/projects/${projectSlug}/tasks${qs ? `?${qs}` : ""}`);
+    return request<Task[]>(
+      `/projects/${projectSlug}/tasks${qs ? `?${qs}` : ""}`,
+    );
   },
 
   get: (projectSlug: string, taskId: number) =>
@@ -485,7 +511,7 @@ export const tasks = {
       position_y?: number;
       metadata?: Record<string, unknown>;
       project_slug: string;
-    }
+    },
   ) =>
     request<Task>(`/projects/${projectSlug}/tasks`, {
       method: "POST",
@@ -504,18 +530,14 @@ export const tasks = {
       position_x: number;
       position_y: number;
       metadata: Record<string, unknown>;
-    }>
+    }>,
   ) =>
     request<Task>(`/projects/${projectSlug}/tasks/${taskId}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
 
-  changeStatus: (
-    projectSlug: string,
-    taskId: number,
-    status: string
-  ) =>
+  changeStatus: (projectSlug: string, taskId: number, status: string) =>
     request<{
       task: Task;
       status_changed: boolean;
@@ -534,7 +556,7 @@ export const tasks = {
 
   events: (projectSlug: string, taskId: number, limit?: number) =>
     request<TaskEvent[]>(
-      `/projects/${projectSlug}/tasks/${taskId}/events${limit ? `?limit=${limit}` : ""}`
+      `/projects/${projectSlug}/tasks/${taskId}/events${limit ? `?limit=${limit}` : ""}`,
     ),
 
   graph: (projectSlug: string) =>
@@ -553,22 +575,22 @@ export const tasks = {
       target_task_id: number;
       dependency_type?: string;
       description?: string;
-    }
+    },
   ) =>
     request<Dependency>(
       `/projects/${projectSlug}/tasks/${taskId}/dependencies`,
-      { method: "POST", body: JSON.stringify(data) }
+      { method: "POST", body: JSON.stringify(data) },
     ),
 
   getDependencies: (projectSlug: string, taskId: number) =>
     request<{ incoming: Dependency[]; outgoing: Dependency[] }>(
-      `/projects/${projectSlug}/tasks/${taskId}/dependencies`
+      `/projects/${projectSlug}/tasks/${taskId}/dependencies`,
     ),
 
   deleteDependency: (projectSlug: string, dependencyId: number) =>
     request<{ message: string }>(
       `/projects/${projectSlug}/tasks/dependencies/${dependencyId}`,
-      { method: "DELETE" }
+      { method: "DELETE" },
     ),
 
   addAction: (
@@ -581,17 +603,17 @@ export const tasks = {
       message_template?: string;
       delay_minutes?: number;
       execute_order?: number;
-    }
+    },
   ) =>
     request(
       `/projects/${projectSlug}/tasks/dependencies/${dependencyId}/actions`,
-      { method: "POST", body: JSON.stringify(data) }
+      { method: "POST", body: JSON.stringify(data) },
     ),
 
   deleteAction: (projectSlug: string, actionId: number) =>
     request<{ message: string }>(
       `/projects/${projectSlug}/tasks/dependencies/actions/${actionId}`,
-      { method: "DELETE" }
+      { method: "DELETE" },
     ),
 
   stats: (projectSlug: string) =>

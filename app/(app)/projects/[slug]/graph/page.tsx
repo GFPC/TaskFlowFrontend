@@ -203,7 +203,6 @@ export default function GraphPage() {
         edgeTypes={edgeTypes}
         fitView
         className="bg-background"
-        onlyRenderVisible={true}
         deleteKeyCode={["Backspace", "Delete"]}
       >
         <Background gap={20} size={1} />

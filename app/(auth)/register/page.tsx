@@ -29,6 +29,7 @@ export default function RegisterPage() {
     last_name: "",
     username: "",
     password: "",
+    password_confirm: "",
     email: "",
     tg_username: "",
   });
@@ -49,12 +50,26 @@ export default function RegisterPage() {
     return null;
   };
 
+  const validatePasswordMatch = () => {
+    if (form.password !== form.password_confirm) {
+      return "Пароли не совпадают";
+    }
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const pwError = validatePassword(form.password);
+
     if (pwError) {
       toast.error(pwError);
+      return;
+    }
+
+    const pwMatchError = validatePasswordMatch();
+    if (pwMatchError) {
+      toast.error(pwMatchError);
       return;
     }
 
@@ -95,7 +110,9 @@ export default function RegisterPage() {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
             <UserPlus className="h-6 w-6" />
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight text-balance">Создать аккаунт</CardTitle>
+          <CardTitle className="text-2xl font-bold tracking-tight text-balance">
+            Создать аккаунт
+          </CardTitle>
           <CardDescription className="text-balance">
             Зарегистрируйтесь в TaskFlow для управления проектами
           </CardDescription>
@@ -134,7 +151,9 @@ export default function RegisterPage() {
                 autoComplete="username"
                 required
               />
-              <p className="text-xs text-muted-foreground">3-50 символов, a-z, 0-9, _, ., -</p>
+              <p className="text-xs text-muted-foreground">
+                3-50 символов, a-z, 0-9, _, ., -
+              </p>
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="password">Пароль</Label>
@@ -151,6 +170,21 @@ export default function RegisterPage() {
                 Заглавные, строчные буквы и цифры
               </p>
             </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="password_confirm">Подтверждение пароля</Label>
+              <Input
+                id="password_confirm"
+                type="password"
+                value={form.password_confirm}
+                onChange={(e) =>
+                  updateField("password_confirm", e.target.value)
+                }
+                placeholder="Повторите пароль"
+                autoComplete="new-password"
+                required
+              />
+            </div>
+
             <div className="flex flex-col gap-2">
               <Label htmlFor="email">Email (необязательно)</Label>
               <Input
@@ -178,7 +212,10 @@ export default function RegisterPage() {
             </Button>
             <p className="text-sm text-muted-foreground">
               Уже есть аккаунт?{" "}
-              <Link href="/login" className="text-primary hover:underline font-medium">
+              <Link
+                href="/login"
+                className="text-primary hover:underline font-medium"
+              >
                 Войти
               </Link>
             </p>
