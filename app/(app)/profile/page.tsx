@@ -1,54 +1,63 @@
-"use client"
+"use client";
 
-import { useAuth } from "@/lib/auth-context"
-import { useState } from "react"
-import { users } from "@/lib/api"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
-import { toast } from "sonner"
-import { User, Key, Loader2 } from "lucide-react"
+import { useAuth } from "@/lib/auth-context";
+import { useState } from "react";
+import { users } from "@/lib/api";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
+import { User, Key, Loader2 } from "lucide-react";
 
 export default function ProfilePage() {
-  const { user, refreshUser } = useAuth()
-  const [firstName, setFirstName] = useState(user?.first_name || "")
-  const [lastName, setLastName] = useState(user?.last_name || "")
-  const [saving, setSaving] = useState(false)
+  const { user, refreshUser } = useAuth();
+  const [firstName, setFirstName] = useState(user?.first_name || "");
+  const [lastName, setLastName] = useState(user?.last_name || "");
+  const [saving, setSaving] = useState(false);
 
-  const [oldPass, setOldPass] = useState("")
-  const [newPass, setNewPass] = useState("")
-  const [confirmPass, setConfirmPass] = useState("")
-  const [changingPass, setChangingPass] = useState(false)
+  const [oldPass, setOldPass] = useState("");
+  const [newPass, setNewPass] = useState("");
+  const [confirmPass, setConfirmPass] = useState("");
+  const [changingPass, setChangingPass] = useState(false);
 
   async function handleUpdateProfile() {
-    setSaving(true)
+    setSaving(true);
     try {
-      await users.updateMe({ first_name: firstName, last_name: lastName })
-      toast.success("Профиль обновлён")
-      refreshUser()
+      await users.updateMe({ first_name: firstName, last_name: lastName });
+      toast.success("Профиль обновлён");
+      refreshUser();
     } catch {
-      toast.error("Ошибка обновления профиля")
+      toast.error("Ошибка обновления профиля");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   }
 
   async function handleChangePassword() {
-    if (newPass !== confirmPass) return toast.error("Пароли не совпадают")
-    if (newPass.length < 8) return toast.error("Минимум 8 символов")
-    setChangingPass(true)
+    if (newPass !== confirmPass) return toast.error("Пароли не совпадают");
+    if (newPass.length < 8) return toast.error("Минимум 8 символов");
+    setChangingPass(true);
     try {
-      await users.changePassword({ current_password: oldPass, new_password: newPass })
-      toast.success("Пароль изменён")
-      setOldPass("")
-      setNewPass("")
-      setConfirmPass("")
+      await users.changePassword({
+        current_password: oldPass,
+        new_password: newPass,
+      });
+      toast.success("Пароль изменён");
+      setOldPass("");
+      setNewPass("");
+      setConfirmPass("");
     } catch {
-      toast.error("Ошибка смены пароля")
+      toast.error("Ошибка смены пароля");
     } finally {
-      setChangingPass(false)
+      setChangingPass(false);
     }
   }
 
@@ -57,7 +66,7 @@ export default function ProfilePage() {
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
-    )
+    );
   }
 
   return (
@@ -77,7 +86,7 @@ export default function ProfilePage() {
         <CardContent className="space-y-4">
           <div>
             <Label>Email</Label>
-            <Input value={user.email} disabled className="bg-muted" />
+            <Input value={user.email || ""} disabled className="bg-muted" />
           </div>
           <div>
             <Label>Username</Label>
@@ -86,11 +95,17 @@ export default function ProfilePage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Имя</Label>
-              <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+              <Input
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+              />
             </div>
             <div>
               <Label>Фамилия</Label>
-              <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
+              <Input
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+              />
             </div>
           </div>
           <Button onClick={handleUpdateProfile} disabled={saving}>
@@ -108,15 +123,27 @@ export default function ProfilePage() {
         <CardContent className="space-y-4">
           <div>
             <Label>Текущий пароль</Label>
-            <Input type="password" value={oldPass} onChange={(e) => setOldPass(e.target.value)} />
+            <Input
+              type="password"
+              value={oldPass}
+              onChange={(e) => setOldPass(e.target.value)}
+            />
           </div>
           <div>
             <Label>Новый пароль</Label>
-            <Input type="password" value={newPass} onChange={(e) => setNewPass(e.target.value)} />
+            <Input
+              type="password"
+              value={newPass}
+              onChange={(e) => setNewPass(e.target.value)}
+            />
           </div>
           <div>
             <Label>Подтвердите пароль</Label>
-            <Input type="password" value={confirmPass} onChange={(e) => setConfirmPass(e.target.value)} />
+            <Input
+              type="password"
+              value={confirmPass}
+              onChange={(e) => setConfirmPass(e.target.value)}
+            />
           </div>
           <Button onClick={handleChangePassword} disabled={changingPass}>
             {changingPass ? "Изменение..." : "Изменить пароль"}
@@ -124,5 +151,5 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

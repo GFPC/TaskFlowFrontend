@@ -1,4 +1,4 @@
-const API_BASE = true
+const API_BASE = 0
   ? "https://corsair-taskflow.site/api/v1"
   : "http://localhost:8000/api/v1";
 
