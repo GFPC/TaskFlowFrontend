@@ -3,3 +3,4 @@
 .next
 .local
 node_modules
+*.tsbuildinfo
