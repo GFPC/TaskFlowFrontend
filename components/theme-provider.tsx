@@ -17,29 +17,20 @@ export function ThemeSync() {
   const { user } = useAuth();
   const { setTheme } = useTheme();
   const [hasMounted, setHasMounted] = useState(false);
-  const syncedRef = React.useRef(false);
 
   useEffect(() => {
     setHasMounted(true);
   }, []);
 
   useEffect(() => {
-    if (!hasMounted || !user?.id || syncedRef.current) return;
-
-    // Check if user has a theme saved in localStorage (from previous manual selection)
-    const localStorageTheme = localStorage.getItem("theme");
-
-    if (!localStorageTheme && user.theme_preferences?.mode) {
-      // Only apply backend preference if no local theme exists (first visit or cleared storage)
-      const backendTheme = user.theme_preferences.mode as
-        | "dark"
-        | "light"
-        | "system";
-      setTheme(backendTheme);
-    }
-
-    syncedRef.current = true;
-  }, [hasMounted, user?.id, user?.theme_preferences?.mode, setTheme]);
+    if (!hasMounted || !user?.theme_preferences?.mode) return;
+    // Always sync theme from backend preferences
+    const backendTheme = user.theme_preferences.mode as
+      | "dark"
+      | "light"
+      | "system";
+    setTheme(backendTheme);
+  }, [hasMounted, user?.theme_preferences?.mode, setTheme]);
 
   return null;
 }

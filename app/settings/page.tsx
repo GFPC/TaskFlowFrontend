@@ -1,6 +1,8 @@
 "use client";
 
 import { useAuth } from "@/lib/auth-context";
+import { useTheme } from "next-themes";
+
 import { AppShell } from "@/components/layout/app-shell";
 
 import {
@@ -27,6 +29,8 @@ import { useState } from "react";
 
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth();
+
+  const { theme } = useTheme();
   const [loading, setLoading] = useState(false);
 
   const toggleSetting = async (key: string, value: boolean) => {
@@ -123,7 +127,7 @@ export default function SettingsPage() {
               </div>
 
               <Select
-                value={user?.theme_preferences?.mode || "system"}
+                value={theme || "system"}
                 onValueChange={(value) =>
                   updateTheme(value as "dark" | "light" | "system")
                 }

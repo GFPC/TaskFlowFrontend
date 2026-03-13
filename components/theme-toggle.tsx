@@ -14,7 +14,7 @@ import { users } from "@/lib/api";
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
 
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -32,6 +32,8 @@ export function ThemeToggle() {
   const saveTheme = async (mode: "dark" | "light" | "system") => {
     try {
       await users.updateTheme({ mode });
+      // Refresh user data to update theme_preferences in auth context
+      refreshUser();
     } catch (error) {
       console.error("Failed to save theme preference:", error);
     }
