@@ -52,7 +52,10 @@ export default function RecoveryPage() {
     if (!recoveryCode || !newPassword) return;
     setLoading(true);
     try {
-      await auth.recoveryReset({ recovery_code: recoveryCode, new_password: newPassword });
+      await auth.recoveryReset({
+        recovery_code: recoveryCode,
+        new_password: newPassword,
+      });
       toast.success("Пароль изменен! Войдите с новым паролем.");
       router.push("/login");
     } catch (err) {

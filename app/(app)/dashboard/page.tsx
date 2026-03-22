@@ -4,23 +4,37 @@ import useSWR from "swr";
 import Link from "next/link";
 import { teams, projects } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, FolderKanban, Plus, ArrowRight, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import {
+  Users,
+  FolderKanban,
+  Plus,
+  ArrowRight,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+} from "lucide-react";
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const { data: teamsList, isLoading: teamsLoading } = useSWR(
     "teams",
     () => teams.list(),
-    { dedupingInterval: 300000 }
+    { dedupingInterval: 300000 },
   );
   const { data: projectsList, isLoading: projectsLoading } = useSWR(
     "projects",
     () => projects.list(),
-    { dedupingInterval: 300000 }
+    { dedupingInterval: 300000 },
   );
 
   return (
@@ -28,7 +42,8 @@ export default function DashboardPage() {
       {/* Welcome */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          {"Добро пожаловать, "}{user?.first_name || "Пользователь"}
+          {"Добро пожаловать, "}
+          {user?.first_name || "Пользователь"}
         </h1>
         <p className="text-muted-foreground mt-1">
           Обзор ваших команд и проектов
@@ -44,7 +59,11 @@ export default function DashboardPage() {
             </div>
             <div>
               <div className="text-2xl font-bold text-foreground">
-                {teamsLoading ? <Skeleton className="h-7 w-8 inline-block" /> : teamsList?.length ?? 0}
+                {teamsLoading ? (
+                  <Skeleton className="h-7 w-8 inline-block" />
+                ) : (
+                  (teamsList?.length ?? 0)
+                )}
               </div>
               <p className="text-sm text-muted-foreground">Команд</p>
             </div>
@@ -57,7 +76,11 @@ export default function DashboardPage() {
             </div>
             <div>
               <div className="text-2xl font-bold text-foreground">
-                {projectsLoading ? <Skeleton className="h-7 w-8 inline-block" /> : projectsList?.length ?? 0}
+                {projectsLoading ? (
+                  <Skeleton className="h-7 w-8 inline-block" />
+                ) : (
+                  (projectsList?.length ?? 0)
+                )}
               </div>
               <p className="text-sm text-muted-foreground">Проектов</p>
             </div>
@@ -73,7 +96,8 @@ export default function DashboardPage() {
                 {projectsLoading ? (
                   <Skeleton className="h-7 w-8 inline-block" />
                 ) : (
-                  projectsList?.reduce((acc, p) => acc + p.tasks_count, 0) ?? 0
+                  (projectsList?.reduce((acc, p) => acc + p.tasks_count, 0) ??
+                  0)
                 )}
               </div>
               <p className="text-sm text-muted-foreground">Задач</p>
@@ -114,7 +138,9 @@ export default function DashboardPage() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12 text-center">
               <Users className="h-10 w-10 text-muted-foreground mb-3" />
-              <p className="text-sm text-muted-foreground">У вас пока нет команд</p>
+              <p className="text-sm text-muted-foreground">
+                У вас пока нет команд
+              </p>
               <Button className="mt-4" size="sm" asChild>
                 <Link href="/teams/new">Создать команду</Link>
               </Button>
@@ -175,7 +201,9 @@ export default function DashboardPage() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12 text-center">
               <FolderKanban className="h-10 w-10 text-muted-foreground mb-3" />
-              <p className="text-sm text-muted-foreground">У вас пока нет проектов</p>
+              <p className="text-sm text-muted-foreground">
+                У вас пока нет проектов
+              </p>
             </CardContent>
           </Card>
         ) : (
@@ -185,8 +213,14 @@ export default function DashboardPage() {
                 <Card className="hover:border-primary/30 transition-colors cursor-pointer h-full">
                   <CardHeader>
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">{project.name}</CardTitle>
-                      <Badge variant={project.status === "active" ? "default" : "secondary"}>
+                      <CardTitle className="text-base">
+                        {project.name}
+                      </CardTitle>
+                      <Badge
+                        variant={
+                          project.status === "active" ? "default" : "secondary"
+                        }
+                      >
                         {project.status === "active" ? "Активный" : "В архиве"}
                       </Badge>
                     </div>

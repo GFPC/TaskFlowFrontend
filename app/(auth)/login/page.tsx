@@ -72,7 +72,9 @@ export default function LoginPage() {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
             <LogIn className="h-6 w-6" />
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight text-balance">TaskFlow</CardTitle>
+          <CardTitle className="text-2xl font-bold tracking-tight text-balance">
+            TaskFlow
+          </CardTitle>
           <CardDescription className="text-balance">
             Войдите в аккаунт для управления проектами
           </CardDescription>
@@ -118,7 +120,10 @@ export default function LoginPage() {
             </Button>
             <p className="text-sm text-muted-foreground">
               Нет аккаунта?{" "}
-              <Link href="/register" className="text-primary hover:underline font-medium">
+              <Link
+                href="/register"
+                className="text-primary hover:underline font-medium"
+              >
                 Зарегистрироваться
               </Link>
             </p>

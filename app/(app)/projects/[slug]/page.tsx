@@ -4,9 +4,21 @@ import { use, useState } from "react";
 import useSWR, { mutate } from "swr";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { projects, tasks, ApiError, type ProjectDetail, type Task } from "@/lib/api";
+import {
+  projects,
+  tasks,
+  ApiError,
+  type ProjectDetail,
+  type Task,
+} from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,7 +35,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
@@ -45,27 +63,35 @@ import {
   UserPlus,
 } from "lucide-react";
 
-export default function ProjectDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+export default function ProjectDetailPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
   const { slug } = use(params);
   const { user } = useAuth();
   const router = useRouter();
 
-  const { data: project, isLoading, mutate: mutateProject } = useSWR<ProjectDetail>(
-    `project-${slug}`,
-    () => projects.get(slug),
-    { dedupingInterval: 60000 }
-  );
+  const {
+    data: project,
+    isLoading,
+    mutate: mutateProject,
+  } = useSWR<ProjectDetail>(`project-${slug}`, () => projects.get(slug), {
+    dedupingInterval: 60000,
+  });
 
-  const { data: tasksList, isLoading: tasksLoading, mutate: mutateTasks } = useSWR(
-    project ? `tasks-${slug}` : null,
-    () => tasks.list(slug),
-    { dedupingInterval: 30000 }
-  );
+  const {
+    data: tasksList,
+    isLoading: tasksLoading,
+    mutate: mutateTasks,
+  } = useSWR(project ? `tasks-${slug}` : null, () => tasks.list(slug), {
+    dedupingInterval: 30000,
+  });
 
   const { data: taskStats } = useSWR(
     project ? `task-stats-${slug}` : null,
     () => tasks.stats(slug),
-    { dedupingInterval: 300000 }
+    { dedupingInterval: 300000 },
   );
 
   // Create Task dialog
@@ -141,7 +167,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
     if (!memberUsername.trim()) return;
     setAddMemberLoading(true);
     try {
-      await projects.addMember(slug, { username: memberUsername.trim(), role: memberRole });
+      await projects.addMember(slug, {
+        username: memberUsername.trim(),
+        role: memberRole,
+      });
       toast.success("Участник добавлен");
       mutateProject();
       setAddMemberOpen(false);
@@ -196,7 +225,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-4 w-72" />
         <div className="grid grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-20" />)}
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-20" />
+          ))}
         </div>
       </div>
     );
@@ -207,7 +238,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
       <Card>
         <CardContent className="py-16 text-center">
           <p className="text-muted-foreground">Проект не найден</p>
-          <Button className="mt-4" asChild><Link href="/projects">К проектам</Link></Button>
+          <Button className="mt-4" asChild>
+            <Link href="/projects">К проектам</Link>
+          </Button>
         </CardContent>
       </Card>
     );
@@ -215,52 +248,78 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
 
   const roleIcon = (role: string) => {
     switch (role) {
-      case "owner": return <Crown className="h-3.5 w-3.5 text-warning" />;
-      case "manager": return <Shield className="h-3.5 w-3.5 text-primary" />;
-      case "developer": return <Code2 className="h-3.5 w-3.5 text-chart-2" />;
-      case "observer": return <Eye className="h-3.5 w-3.5 text-muted-foreground" />;
-      default: return null;
+      case "owner":
+        return <Crown className="h-3.5 w-3.5 text-warning" />;
+      case "manager":
+        return <Shield className="h-3.5 w-3.5 text-primary" />;
+      case "developer":
+        return <Code2 className="h-3.5 w-3.5 text-chart-2" />;
+      case "observer":
+        return <Eye className="h-3.5 w-3.5 text-muted-foreground" />;
+      default:
+        return null;
     }
   };
 
   const roleLabel = (role: string) => {
     switch (role) {
-      case "owner": return "Владелец";
-      case "manager": return "Менеджер";
-      case "developer": return "Разработчик";
-      case "observer": return "Наблюдатель";
-      default: return role;
+      case "owner":
+        return "Владелец";
+      case "manager":
+        return "Менеджер";
+      case "developer":
+        return "Разработчик";
+      case "observer":
+        return "Наблюдатель";
+      default:
+        return role;
     }
   };
 
   const statusLabel = (s: string) => {
     switch (s) {
-      case "todo": return "К выполнению";
-      case "in_progress": return "В работе";
-      case "review": return "На проверке";
-      case "completed": return "Выполнена";
-      case "blocked": return "Заблокирована";
-      default: return s;
+      case "todo":
+        return "К выполнению";
+      case "in_progress":
+        return "В работе";
+      case "review":
+        return "На проверке";
+      case "completed":
+        return "Выполнена";
+      case "blocked":
+        return "Заблокирована";
+      default:
+        return s;
     }
   };
 
   const statusColor = (s: string) => {
     switch (s) {
-      case "todo": return "bg-muted text-muted-foreground";
-      case "in_progress": return "bg-primary/15 text-primary";
-      case "review": return "bg-warning/15 text-warning-foreground";
-      case "completed": return "bg-success/15 text-success";
-      case "blocked": return "bg-destructive/15 text-destructive";
-      default: return "bg-muted text-muted-foreground";
+      case "todo":
+        return "bg-muted text-muted-foreground";
+      case "in_progress":
+        return "bg-primary/15 text-primary";
+      case "review":
+        return "bg-warning/15 text-warning-foreground";
+      case "completed":
+        return "bg-success/15 text-success";
+      case "blocked":
+        return "bg-destructive/15 text-destructive";
+      default:
+        return "bg-muted text-muted-foreground";
     }
   };
 
   const priorityLabel = (p: number) => {
     switch (p) {
-      case 0: return "Низкий";
-      case 1: return "Средний";
-      case 2: return "Высокий";
-      default: return String(p);
+      case 0:
+        return "Низкий";
+      case 1:
+        return "Средний";
+      case 2:
+        return "Высокий";
+      default:
+        return String(p);
     }
   };
 
@@ -270,18 +329,27 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">{project.name}</h1>
-            <Badge variant={project.status === "active" ? "default" : "secondary"}>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              {project.name}
+            </h1>
+            <Badge
+              variant={project.status === "active" ? "default" : "secondary"}
+            >
               {project.status === "active" ? "Активный" : "В архиве"}
             </Badge>
           </div>
-          <p className="text-muted-foreground mt-1">{project.description || "Нет описания"}</p>
+          <p className="text-muted-foreground mt-1">
+            {project.description || "Нет описания"}
+          </p>
           <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
             <Badge variant="outline" className="gap-1">
               {roleIcon(project.user_role)}
               {roleLabel(project.user_role)}
             </Badge>
-            <Link href={`/teams/${project.team_slug}`} className="hover:text-primary transition-colors">
+            <Link
+              href={`/teams/${project.team_slug}`}
+              className="hover:text-primary transition-colors"
+            >
               {project.team_name}
             </Link>
           </div>
@@ -295,16 +363,31 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
           </Button>
           {project.can_delete_project && (
             <>
-              <Button variant="outline" size="sm" onClick={handleArchive} className="gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleArchive}
+                className="gap-1"
+              >
                 {project.status === "archived" ? (
-                  <><RotateCcw className="h-4 w-4" />Восстановить</>
+                  <>
+                    <RotateCcw className="h-4 w-4" />
+                    Восстановить
+                  </>
                 ) : (
-                  <><Archive className="h-4 w-4" />Архив</>
+                  <>
+                    <Archive className="h-4 w-4" />
+                    Архив
+                  </>
                 )}
               </Button>
               <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="text-destructive">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive"
+                  >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </DialogTrigger>
@@ -312,7 +395,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
                   <DialogHeader>
                     <DialogTitle>Удалить проект?</DialogTitle>
                     <DialogDescription>
-                      {"Введите «"}{project.name}{"» для подтверждения."}
+                      {"Введите «"}
+                      {project.name}
+                      {"» для подтверждения."}
                     </DialogDescription>
                   </DialogHeader>
                   <Input
@@ -321,7 +406,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
                     placeholder={project.name}
                   />
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setDeleteOpen(false)}>Отмена</Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setDeleteOpen(false)}
+                    >
+                      Отмена
+                    </Button>
                     <Button
                       variant="destructive"
                       disabled={deleteConfirm !== project.name}
@@ -344,7 +434,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
             <CardContent className="flex items-center gap-3 pt-4 pb-4">
               <ListTodo className="h-5 w-5 text-primary" />
               <div>
-                <p className="text-xl font-bold text-foreground">{taskStats.total}</p>
+                <p className="text-xl font-bold text-foreground">
+                  {taskStats.total}
+                </p>
                 <p className="text-xs text-muted-foreground">Всего задач</p>
               </div>
             </CardContent>
@@ -375,7 +467,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
             <CardContent className="flex items-center gap-3 pt-4 pb-4">
               <AlertTriangle className="h-5 w-5 text-destructive" />
               <div>
-                <p className="text-xl font-bold text-foreground">{taskStats.overdue}</p>
+                <p className="text-xl font-bold text-foreground">
+                  {taskStats.overdue}
+                </p>
                 <p className="text-xs text-muted-foreground">Просрочено</p>
               </div>
             </CardContent>
@@ -392,7 +486,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
         {/* Tasks Tab */}
         <TabsContent value="tasks" className="mt-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-foreground">Задачи ({tasksList?.length ?? 0})</h3>
+            <h3 className="font-semibold text-foreground">
+              Задачи ({tasksList?.length ?? 0})
+            </h3>
             {project.can_create_tasks && (
               <Dialog open={createTaskOpen} onOpenChange={setCreateTaskOpen}>
                 <DialogTrigger asChild>
@@ -426,7 +522,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="flex flex-col gap-2">
                         <Label>Исполнитель</Label>
-                        <Select value={taskAssignee} onValueChange={setTaskAssignee}>
+                        <Select
+                          value={taskAssignee}
+                          onValueChange={setTaskAssignee}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder="Не выбран" />
                           </SelectTrigger>
@@ -442,7 +541,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
                       </div>
                       <div className="flex flex-col gap-2">
                         <Label>Приоритет</Label>
-                        <Select value={taskPriority} onValueChange={setTaskPriority}>
+                        <Select
+                          value={taskPriority}
+                          onValueChange={setTaskPriority}
+                        >
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
@@ -464,9 +566,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setCreateTaskOpen(false)}>Отмена</Button>
-                    <Button onClick={handleCreateTask} disabled={createTaskLoading || !taskName.trim()}>
-                      {createTaskLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <Button
+                      variant="outline"
+                      onClick={() => setCreateTaskOpen(false)}
+                    >
+                      Отмена
+                    </Button>
+                    <Button
+                      onClick={handleCreateTask}
+                      disabled={createTaskLoading || !taskName.trim()}
+                    >
+                      {createTaskLoading && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
                       Создать
                     </Button>
                   </DialogFooter>
@@ -478,7 +590,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
           {tasksLoading ? (
             <div className="flex flex-col gap-2">
               {[1, 2, 3].map((i) => (
-                <Card key={i}><CardContent className="py-3"><Skeleton className="h-5 w-48" /></CardContent></Card>
+                <Card key={i}>
+                  <CardContent className="py-3">
+                    <Skeleton className="h-5 w-48" />
+                  </CardContent>
+                </Card>
               ))}
             </div>
           ) : tasksList?.length === 0 ? (
@@ -491,14 +607,21 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
           ) : (
             <div className="flex flex-col gap-2">
               {tasksList?.map((task: Task) => (
-                <Card key={task.id} className="hover:border-border transition-colors">
+                <Card
+                  key={task.id}
+                  className="hover:border-border transition-colors"
+                >
                   <CardContent className="flex items-center justify-between py-3 px-4">
                     <div className="flex items-center gap-3 min-w-0">
-                      <Badge className={`${statusColor(task.status)} text-xs shrink-0`}>
+                      <Badge
+                        className={`${statusColor(task.status)} text-xs shrink-0`}
+                      >
                         {statusLabel(task.status)}
                       </Badge>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{task.name}</p>
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {task.name}
+                        </p>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           {task.assignee_username && (
                             <span>@{task.assignee_username}</span>
@@ -509,7 +632,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
                               {new Date(task.deadline).toLocaleDateString("ru")}
                             </span>
                           )}
-                          <Badge variant="outline" className="text-[10px] px-1 py-0">
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] px-1 py-0"
+                          >
                             {priorityLabel(task.priority)}
                           </Badge>
                         </div>
@@ -550,7 +676,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
         {/* Members Tab */}
         <TabsContent value="members" className="mt-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-foreground">Участники ({project.members.length})</h3>
+            <h3 className="font-semibold text-foreground">
+              Участники ({project.members.length})
+            </h3>
             {project.can_manage_members && (
               <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
                 <DialogTrigger asChild>
@@ -562,7 +690,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Добавить участника</DialogTitle>
-                    <DialogDescription>Участник должен быть в команде {project.team_name}</DialogDescription>
+                    <DialogDescription>
+                      Участник должен быть в команде {project.team_name}
+                    </DialogDescription>
                   </DialogHeader>
                   <div className="flex flex-col gap-4">
                     <div className="flex flex-col gap-2">
@@ -576,7 +706,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
                     <div className="flex flex-col gap-2">
                       <Label>Роль</Label>
                       <Select value={memberRole} onValueChange={setMemberRole}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="developer">Разработчик</SelectItem>
                           <SelectItem value="manager">Менеджер</SelectItem>
@@ -586,9 +718,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setAddMemberOpen(false)}>Отмена</Button>
-                    <Button onClick={handleAddMember} disabled={addMemberLoading}>
-                      {addMemberLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <Button
+                      variant="outline"
+                      onClick={() => setAddMemberOpen(false)}
+                    >
+                      Отмена
+                    </Button>
+                    <Button
+                      onClick={handleAddMember}
+                      disabled={addMemberLoading}
+                    >
+                      {addMemberLoading && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
                       Добавить
                     </Button>
                   </DialogFooter>
@@ -605,37 +747,50 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
                     <div className="flex items-center gap-3">
                       <Avatar className="h-8 w-8">
                         <AvatarFallback className="text-xs">
-                          {member.first_name[0]}{member.last_name[0]}
+                          {member.first_name[0]}
+                          {member.last_name[0]}
                         </AvatarFallback>
                       </Avatar>
                       <div>
                         <p className="text-sm font-medium text-foreground">
                           {member.first_name} {member.last_name}
                         </p>
-                        <p className="text-xs text-muted-foreground">@{member.username}</p>
+                        <p className="text-xs text-muted-foreground">
+                          @{member.username}
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {project.can_manage_members && member.role !== "owner" && member.username !== user?.username ? (
+                      {project.can_manage_members &&
+                      member.role !== "owner" &&
+                      member.username !== user?.username ? (
                         <>
                           <Select
                             value={member.role}
                             onValueChange={(role) => {
-                              projects.updateMember(slug, member.username, role).then(() => {
-                                toast.success("Роль изменена");
-                                mutateProject();
-                              }).catch((err: unknown) => {
-                                if (err instanceof ApiError) toast.error(err.detail);
-                              });
+                              projects
+                                .updateMember(slug, member.username, role)
+                                .then(() => {
+                                  toast.success("Роль изменена");
+                                  mutateProject();
+                                })
+                                .catch((err: unknown) => {
+                                  if (err instanceof ApiError)
+                                    toast.error(err.detail);
+                                });
                             }}
                           >
                             <SelectTrigger className="w-32 h-8 text-xs">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="developer">Разработчик</SelectItem>
+                              <SelectItem value="developer">
+                                Разработчик
+                              </SelectItem>
                               <SelectItem value="manager">Менеджер</SelectItem>
-                              <SelectItem value="observer">Наблюдатель</SelectItem>
+                              <SelectItem value="observer">
+                                Наблюдатель
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                           <Button

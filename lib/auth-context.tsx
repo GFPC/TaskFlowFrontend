@@ -8,7 +8,14 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { auth, users, getTokens, setTokens, clearTokens, type User } from "@/lib/api";
+import {
+  auth,
+  users,
+  getTokens,
+  setTokens,
+  clearTokens,
+  type User,
+} from "@/lib/api";
 
 interface AuthContextType {
   user: User | null;
@@ -82,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(me);
       return { type: "success", user: me };
     },
-    []
+    [],
   );
 
   const register = useCallback(
@@ -97,21 +104,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await auth.register(data);
       return { user_id: res.user_id, tg_code: res.tg_code };
     },
-    []
+    [],
   );
 
-  const verifyTelegram = useCallback(
-    async (userId: number, code: string) => {
-      const res = await auth.verifyTelegram({ user_id: userId, code });
-      setTokens({
-        access_token: res.access_token,
-        refresh_token: res.refresh_token,
-        expires_at: res.expires_at,
-      });
-      setUser(res.user);
-    },
-    []
-  );
+  const verifyTelegram = useCallback(async (userId: number, code: string) => {
+    const res = await auth.verifyTelegram({ user_id: userId, code });
+    setTokens({
+      access_token: res.access_token,
+      refresh_token: res.refresh_token,
+      expires_at: res.expires_at,
+    });
+    setUser(res.user);
+  }, []);
 
   const logout = useCallback(async () => {
     try {

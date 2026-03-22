@@ -8,8 +8,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
@@ -54,7 +67,9 @@ function NewProjectForm() {
       <Card className="border-border/50 shadow-lg">
         <CardHeader>
           <CardTitle className="text-xl">Новый проект</CardTitle>
-          <CardDescription>Создайте проект в одной из ваших команд</CardDescription>
+          <CardDescription>
+            Создайте проект в одной из ваших команд
+          </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="flex flex-col gap-4">
@@ -97,10 +112,17 @@ function NewProjectForm() {
             </div>
           </CardContent>
           <CardFooter className="flex gap-2">
-            <Button type="button" variant="outline" onClick={() => router.back()}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.back()}
+            >
               Отмена
             </Button>
-            <Button type="submit" disabled={loading || !name.trim() || !teamSlug}>
+            <Button
+              type="submit"
+              disabled={loading || !name.trim() || !teamSlug}
+            >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Создать
             </Button>
