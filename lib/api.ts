@@ -338,7 +338,7 @@ export const teams = {
       body: JSON.stringify(data),
     }),
 
-  myInvitations: () => request<TeamInvitation[]>("/teams/invitations"),
+  myInvitations: () => request<TeamInvitation[]>("/teams/invitations/me"),
 
   teamInvitations: (slug: string, status?: string) =>
     request<TeamInvitation[]>(
@@ -459,7 +459,7 @@ export const projects = {
       body: JSON.stringify(data),
     }),
 
-  myInvitations: () => request<ProjectInvitation[]>("/projects/invitations"),
+  myInvitations: () => request<ProjectInvitation[]>("/projects/invitations/me"),
 
   acceptInvitation: (id: number) =>
     request(`/projects/invitations/${id}/accept`, { method: "POST" }),
