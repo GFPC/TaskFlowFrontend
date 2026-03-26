@@ -184,9 +184,7 @@ export default function GraphPage() {
         mutate();
       } catch (err: any) {
         setEdges((eds) => eds.filter((e) => e.id !== newEdge.id));
-        toast.error(
-          JSON.stringify(err.detail) || "Ошибка: возможен цикл зависимостей",
-        );
+        toast.error(err.detail || "Ошибка: возможен цикл зависимостей");
       }
     },
     [slug, setEdges, mutate],
