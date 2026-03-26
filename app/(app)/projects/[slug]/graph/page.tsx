@@ -60,7 +60,7 @@ function graphToEdges(graphData: GraphData): Edge[] {
     label: e.label,
     markerEnd: { type: MarkerType.ArrowClosed },
     data: { actions: e.data?.actions ?? [] },
-    style: { stroke: "hsl(var(--primary))" },
+    style: { stroke: "var(--primary)" },
   }));
 }
 
@@ -170,7 +170,7 @@ export default function GraphPage() {
         type: "dependency",
         animated: true,
         markerEnd: { type: MarkerType.ArrowClosed },
-        style: { stroke: "hsl(var(--primary))" },
+        style: { stroke: "var(--primary)" },
       };
 
       setEdges((eds) => addEdge(newEdge, eds));
