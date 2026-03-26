@@ -1,17 +1,28 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { tasks as tasksApi } from "@/lib/api"
-import { toast } from "sonner"
-import { Trash2, Save, Play, CheckCircle2 } from "lucide-react"
+import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { tasks as tasksApi } from "@/lib/api";
+import { toast } from "sonner";
+import { Trash2, Save, Play, CheckCircle2 } from "lucide-react";
 
 const statusLabels: Record<string, string> = {
   todo: "К выполнению",
@@ -19,55 +30,61 @@ const statusLabels: Record<string, string> = {
   review: "На проверке",
   completed: "Выполнена",
   blocked: "Заблокирована",
-}
+};
 
 const priorityLabels: Record<number, string> = {
   0: "Низкий",
   1: "Средний",
   2: "Высокий",
-}
+};
 
 interface Props {
-  task: any
-  projectSlug: string
-  open: boolean
-  onClose: () => void
-  onUpdate: () => void
+  task: any;
+  projectSlug: string;
+  open: boolean;
+  onClose: () => void;
+  onUpdate: () => void;
 }
 
-export function TaskDetailDialog({ task, projectSlug, open, onClose, onUpdate }: Props) {
-  const [name, setName] = useState(task.name)
-  const [status, setStatus] = useState(task.status)
-  const [priority, setPriority] = useState(String(task.priority ?? 0))
-  const [loading, setLoading] = useState(false)
+export function TaskDetailDialog({
+  task,
+  projectSlug,
+  open,
+  onClose,
+  onUpdate,
+}: Props) {
+  const [name, setName] = useState(task.name);
+  const [status, setStatus] = useState(task.status);
+  const [priority, setPriority] = useState(String(task.priority ?? 0));
+  const [loading, setLoading] = useState(false);
 
   async function handleSave() {
-    setLoading(true)
+    setLoading(true);
     try {
       const payload: any = { name, priority: Number(priority) };
-      await tasksApi.update(projectSlug, task.id, payload)
+      await tasksApi.update(projectSlug, task.id, payload);
       if (status !== task.status) {
-        await tasksApi.changeStatus(projectSlug, task.id, status)
+        await tasksApi.changeStatus(projectSlug, task.id, status);
       }
-      toast.success("Задача обновлена")
-      onUpdate()
-      onClose()
+      toast.success("Задача обновлена");
+      onUpdate();
+      onClose();
     } catch (err: any) {
-      toast.error(err.detail || "Ошибка обновления")
+      toast.error(err.detail || "Ошибка обновления");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   async function handleDelete() {
-    if (!confirm("Удалить задачу?")) return
+    if (!confirm("Удалить задачу?")) return;
     try {
-      await tasksApi.delete(projectSlug, task.id)
-      toast.success("Задача удалена")
-      onUpdate()
-      onClose()
+      await tasksApi.delete(projectSlug, task.id);
+      toast.success("Задача удалена");
+      onUpdate();
+      onClose();
     } catch {
-      toast.error("Ошибка удаления")
+      toast.error("Ошибка удаления");
     }
   }
 
@@ -77,7 +94,9 @@ export function TaskDetailDialog({ task, projectSlug, open, onClose, onUpdate }:
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             Задача #{task.id}
-            <Badge variant="outline">{priorityLabels[task.priority] ?? "Средний"}</Badge>
+            <Badge variant="outline">
+              {priorityLabels[task.priority] ?? "Средний"}
+            </Badge>
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
@@ -89,10 +108,14 @@ export function TaskDetailDialog({ task, projectSlug, open, onClose, onUpdate }:
             <div>
               <Label>Статус</Label>
               <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {Object.entries(statusLabels).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v}</SelectItem>
+                    <SelectItem key={k} value={k}>
+                      {v}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -100,10 +123,14 @@ export function TaskDetailDialog({ task, projectSlug, open, onClose, onUpdate }:
             <div>
               <Label>Приоритет</Label>
               <Select value={priority} onValueChange={setPriority}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {Object.entries(priorityLabels).map(([k, v]) => (
-                    <SelectItem key={k} value={String(k)}>{v}</SelectItem>
+                    <SelectItem key={k} value={String(k)}>
+                      {v}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -118,19 +145,25 @@ export function TaskDetailDialog({ task, projectSlug, open, onClose, onUpdate }:
           <Separator />
           <div className="flex flex-col gap-2">
             <div className="flex gap-2">
-              {task.status === 'todo' && task.is_ready && (
-                <Button 
-                  className="flex-1 bg-success hover:bg-success/90" 
-                  onClick={() => { setStatus('in_progress'); handleSave(); }}
+              {task.status === "todo" && task.is_ready && (
+                <Button
+                  className="flex-1 bg-success hover:bg-success/90"
+                  onClick={() => {
+                    setStatus("in_progress");
+                    handleSave();
+                  }}
                 >
                   <Play className="h-4 w-4 mr-2" /> Начать работу
                 </Button>
               )}
-              {task.status !== 'completed' && (
-                <Button 
-                  className="flex-1" 
+              {task.status !== "completed" && (
+                <Button
+                  className="flex-1"
                   variant="outline"
-                  onClick={() => { setStatus('completed'); handleSave(); }}
+                  onClick={() => {
+                    setStatus("completed");
+                    handleSave();
+                  }}
                 >
                   <CheckCircle2 className="h-4 w-4 mr-2" /> Завершить
                 </Button>
@@ -149,5 +182,5 @@ export function TaskDetailDialog({ task, projectSlug, open, onClose, onUpdate }:
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -26,7 +26,12 @@ interface Props {
   onClose: () => void;
 }
 
-export function VerificationDialog({ userId, tgCode, onSuccess, onClose }: Props) {
+export function VerificationDialog({
+  userId,
+  tgCode,
+  onSuccess,
+  onClose,
+}: Props) {
   const { verifyTelegram } = useAuth();
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -65,7 +70,8 @@ export function VerificationDialog({ userId, tgCode, onSuccess, onClose }: Props
             Верификация Telegram
           </DialogTitle>
           <DialogDescription className="text-balance">
-            Отправьте этот код Telegram-боту TaskFlow, затем введите 6-значный код, который бот пришлет в ответ.
+            Отправьте этот код Telegram-боту TaskFlow, затем введите 6-значный
+            код, который бот пришлет в ответ.
           </DialogDescription>
         </DialogHeader>
 
@@ -87,7 +93,9 @@ export function VerificationDialog({ userId, tgCode, onSuccess, onClose }: Props
           </div>
 
           <div className="flex flex-col items-center gap-3">
-            <p className="text-sm text-muted-foreground">Введите код от бота:</p>
+            <p className="text-sm text-muted-foreground">
+              Введите код от бота:
+            </p>
             <InputOTP maxLength={6} value={code} onChange={setCode}>
               <InputOTPGroup>
                 <InputOTPSlot index={0} />
