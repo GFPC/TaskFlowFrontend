@@ -1,12 +1,24 @@
 "use client";
 
 import { useState } from "react";
+
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,15 +60,23 @@ interface Props {
 
 export function TaskDetailDialog({
   task,
+
   projectSlug,
+
   open,
+
   onClose,
+
   onUpdate,
 }: Props) {
   const [name, setName] = useState(task.name);
+
   const [status, setStatus] = useState(task.status);
+
   const [priority, setPriority] = useState(String(task.priority ?? 0));
+
   const [loading, setLoading] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   async function handleSave() {
     setLoading(true);
@@ -77,14 +97,22 @@ export function TaskDetailDialog({
   }
 
   async function handleDelete() {
-    if (!confirm("Удалить задачу?")) return;
+    setShowDeleteDialog(true);
+  }
+
+  async function confirmDelete() {
     try {
       await tasksApi.delete(projectSlug, task.id);
+
       toast.success("Задача удалена");
+
       onUpdate();
+
       onClose();
     } catch {
       toast.error("Ошибка удаления");
+    } finally {
+      setShowDeleteDialog(false);
     }
   }
 
@@ -171,14 +199,38 @@ export function TaskDetailDialog({
             </div>
           </div>
           <Separator />
+
           <div className="flex justify-between">
             <Button variant="destructive" size="sm" onClick={handleDelete}>
               <Trash2 className="h-4 w-4 mr-1" /> Удалить
             </Button>
+
             <Button size="sm" onClick={handleSave} disabled={loading}>
               <Save className="h-4 w-4 mr-1" /> Сохранить
             </Button>
           </div>
+
+          <AlertDialog
+            open={showDeleteDialog}
+            onOpenChange={setShowDeleteDialog}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Удалить задачу?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Это действие нельзя отменить. Задача будет удалена
+                  безвозвратно.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Отмена</AlertDialogCancel>
+
+                <AlertDialogAction onClick={confirmDelete}>
+                  Удалить
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </DialogContent>
     </Dialog>

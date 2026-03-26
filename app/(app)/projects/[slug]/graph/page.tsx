@@ -1,8 +1,11 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
+
 import useSWR from "swr";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
+
 import ReactFlow, {
   Background,
   Controls,
@@ -18,9 +21,13 @@ import ReactFlow, {
   type NodeChange,
   type EdgeChange,
 } from "reactflow";
+
 import "reactflow/dist/style.css";
+
 import { tasks as tasksApi, type GraphData } from "@/lib/api";
+
 import { Button } from "@/components/ui/button";
+
 import {
   ArrowLeft,
   Plus,
@@ -29,14 +36,33 @@ import {
   LayoutGrid,
   Filter,
 } from "lucide-react";
+
 import { TaskNode } from "@/components/graph/task-node";
+
 import { DependencyEdge } from "@/components/graph/dependency-edge";
+
 import { TaskDetailDialog } from "@/components/graph/task-detail-dialog";
+
 import { CreateTaskDialog } from "@/components/graph/create-task-dialog";
+
 import { toast } from "sonner";
+
 import { debounce } from "lodash";
+
 import { cn } from "@/lib/utils";
+
 import { Separator } from "@/components/ui/separator";
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const nodeTypes = { taskNode: TaskNode };
 const edgeTypes = { dependency: DependencyEdge };
@@ -76,9 +102,15 @@ export default function GraphPage() {
   } = useSWR(`graph-${slug}`, () => tasksApi.graph(slug));
 
   const [nodes, setNodes, onNodesChangeState] = useNodesState([]);
+
   const [edges, setEdges, onEdgesChangeState] = useEdgesState([]);
+
   const [selectedTask, setSelectedTask] = useState<any>(null);
+
   const [showCreate, setShowCreate] = useState(false);
+
+  const [nodeToDelete, setNodeToDelete] = useState<Node | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   useEffect(() => {
     if (graphData) {
@@ -199,6 +231,29 @@ export default function GraphPage() {
     setSelectedTask(node.data);
   }, []);
 
+  // Handle delete key press
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        (event.key === "Delete" || event.key === "Backspace") &&
+        selectedTask
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        const selectedNode = nodes.find(
+          (n) => n.id === String(selectedTask.id),
+        );
+        if (selectedNode) {
+          setNodeToDelete(selectedNode);
+          setShowDeleteDialog(true);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedTask, nodes]);
+
   if (graphLoading && !graphData) {
     return (
       <div className="flex items-center justify-center h-[80vh]">
@@ -206,6 +261,21 @@ export default function GraphPage() {
       </div>
     );
   }
+
+  const handleDeleteNode = async () => {
+    if (!nodeToDelete) return;
+    try {
+      const taskId = Number(nodeToDelete.id);
+      await tasksApi.delete(slug, taskId);
+      toast.success("Задача удалена");
+      setShowDeleteDialog(false);
+      setNodeToDelete(null);
+      setSelectedTask(null);
+      mutate();
+    } catch (err: any) {
+      toast.error(err.detail || "Ошибка удаления");
+    }
+  };
 
   return (
     <div className="h-[calc(100vh-4rem)] relative">
@@ -310,9 +380,29 @@ export default function GraphPage() {
         onClose={() => setShowCreate(false)}
         onCreate={() => {
           mutate();
+
           setShowCreate(false);
         }}
       />
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить задачу?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Это действие нельзя отменить. Задача "{nodeToDelete?.data.name}"
+              будет удалена безвозвратно.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+
+            <AlertDialogAction onClick={handleDeleteNode}>
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
