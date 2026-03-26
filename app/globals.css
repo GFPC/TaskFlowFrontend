@@ -131,7 +131,19 @@
     * {
         @apply border-border outline-ring/50;
     }
+
     body {
         @apply bg-background text-foreground;
+
+        transition:
+            background-color 0.2s ease,
+            color 0.2s ease;
     }
+}
+
+aside {
+    transition:
+        background-color 0.3s ease-in-out,
+        border-color 0.3s ease-in-out,
+        color 0.3s ease-in-out;
 }
