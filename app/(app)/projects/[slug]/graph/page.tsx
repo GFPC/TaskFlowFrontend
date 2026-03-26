@@ -119,17 +119,22 @@ export default function GraphPage() {
       debounce(async (nds: Node[]) => {
         const updatedGraph: GraphData = {
           nodes: nds.map((n) => ({
-            id: Number(n.id),
+            id: n.id as string,
             type: n.type || "taskNode",
+
             data: n.data as any,
+
             position: n.position,
           })),
+
           edges: edges.map((e) => ({
-            id: Number(e.id.replace("e", "")),
-            source: Number(e.source),
-            target: Number(e.target),
+            id: e.id,
+            source: e.source as string,
+            target: e.target as string,
             animated: e.animated,
+
             label: typeof e.label === "string" ? e.label : undefined,
+
             data: e.data as any,
           })),
         };
@@ -256,14 +261,14 @@ export default function GraphPage() {
             <div className="grid grid-cols-2 gap-1">
               <Button
                 variant="outline"
-                size="xs"
+                size="sm"
                 className="text-[10px] h-7 px-1"
               >
                 <LayoutGrid className="h-3 w-3 mr-1" /> Автосетка
               </Button>
               <Button
                 variant="outline"
-                size="xs"
+                size="sm"
                 className="text-[10px] h-7 px-1"
               >
                 <Filter className="h-3 w-3 mr-1" /> Фильтр

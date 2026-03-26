@@ -1,4 +1,4 @@
-const API_BASE = 0
+const API_BASE = 1
   ? "https://corsair-taskflow.site/api/v1"
   : "http://localhost:8000/api/v1";
 
@@ -563,7 +563,7 @@ export const tasks = {
     request<GraphData>(`/projects/${projectSlug}/tasks/graph`),
 
   saveGraph: (projectSlug: string, data: GraphData) =>
-    request<{ message: string }>(`/projects/${projectSlug}/tasks/graph`, {
+    request<{ message: string }>(`/projects/${projectSlug}/graph`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
