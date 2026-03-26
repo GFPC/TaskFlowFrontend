@@ -49,9 +49,10 @@ export function ThemeToggle() {
     } else {
       newTheme = "dark";
     }
-    setTheme(newTheme);
     if (user) {
       saveTheme(newTheme);
+    } else {
+      setTheme(newTheme);
     }
   };
 
