@@ -110,7 +110,11 @@ export default function GraphPage() {
   const [showCreate, setShowCreate] = useState(false);
 
   const [nodeToDelete, setNodeToDelete] = useState<Node | null>(null);
+
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [snapToGrid, setSnapToGrid] = useState(false);
+
+  const [snapGrid, setSnapGrid] = useState<[number, number]>([20, 20]);
 
   useEffect(() => {
     if (graphData) {
@@ -276,7 +280,6 @@ export default function GraphPage() {
       toast.error(err.detail || "Ошибка удаления");
     }
   };
-
   return (
     <div className="h-[calc(100vh-4rem)] relative">
       <ReactFlow
@@ -291,6 +294,8 @@ export default function GraphPage() {
         fitView
         className="bg-background"
         deleteKeyCode={["Backspace", "Delete"]}
+        snapToGrid={snapToGrid}
+        snapGrid={snapGrid}
       >
         <Background gap={20} size={1} />
         <Controls />
@@ -330,18 +335,13 @@ export default function GraphPage() {
             </p>
             <div className="grid grid-cols-2 gap-1">
               <Button
-                variant="outline"
+                variant={snapToGrid ? "default" : "outline"}
                 size="sm"
                 className="text-[10px] h-7 px-1"
+                onClick={() => setSnapToGrid(!snapToGrid)}
               >
-                <LayoutGrid className="h-3 w-3 mr-1" /> Автосетка
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-[10px] h-7 px-1"
-              >
-                <Filter className="h-3 w-3 mr-1" /> Фильтр
+                <LayoutGrid className="h-3 w-3 mr-1" />{" "}
+                {snapToGrid ? "Сетка вкл" : "Автосетка"}
               </Button>
             </div>
           </div>
