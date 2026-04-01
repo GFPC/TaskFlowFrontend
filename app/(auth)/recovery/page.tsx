@@ -35,9 +35,9 @@ export default function RecoveryPage() {
       if (res.success && res.recovery_code) {
         setRecoveryCode(res.recovery_code);
         setStep("reset");
-        toast.success("Код восстановления отправлен в Telegram");
+        toast.success("Код восстановления отправлен на email");
       } else {
-        toast.info("Если пользователь существует, код будет отправлен");
+        toast.info("Если пользователь существует, код будет отправлен на email");
       }
     } catch (err) {
       if (err instanceof ApiError) toast.error(err.detail);
@@ -119,9 +119,12 @@ export default function RecoveryPage() {
                 id="code"
                 value={recoveryCode}
                 onChange={(e) => setRecoveryCode(e.target.value)}
-                placeholder="Код из Telegram"
+                placeholder="Код из email"
                 required
               />
+              <p className="text-xs text-muted-foreground">
+                Проверьте почту (включая папку «Спам»)
+              </p>
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="newpassword">Новый пароль</Label>

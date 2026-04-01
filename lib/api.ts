@@ -158,12 +158,13 @@ export const auth = {
     last_name: string;
     username: string;
     password: string;
-    email?: string;
+    email: string;
     tg_username?: string;
   }) =>
     request<{
       user_id: number;
-      tg_code: string;
+      email_sent: boolean;
+      verification_code?: string;
       requires_verification: boolean;
       message: string;
     }>("/auth/register", { method: "POST", body: JSON.stringify(data) }),
@@ -177,17 +178,18 @@ export const auth = {
       expires_at?: string;
       user?: User;
       user_id?: number;
-      tg_code?: string;
+      email_sent?: boolean;
+      verification_code?: string;
     }>("/auth/login", { method: "POST", body: JSON.stringify(data) }),
 
-  verifyTelegram: (data: { user_id: number; code: string }) =>
+  verifyEmail: (data: { user_id: number; code: string }) =>
     request<{
       access_token: string;
       refresh_token: string;
       token_type: string;
       expires_at: string;
       user: User;
-    }>("/auth/verify-telegram", { method: "POST", body: JSON.stringify(data) }),
+    }>("/auth/verify-email", { method: "POST", body: JSON.stringify(data) }),
 
   refresh: (refresh_token: string) =>
     request<{
@@ -634,7 +636,7 @@ export interface User {
   username: string;
   email?: string;
   tg_username?: string;
-  tg_verified?: boolean;
+  email_verified?: boolean;
   role?: string;
   is_active?: boolean;
   is_superuser?: boolean;
@@ -647,7 +649,6 @@ export interface User {
     language?: string;
   };
   notification_settings?: {
-    telegram?: boolean;
     email?: boolean;
     task_assigned?: boolean;
     task_completed?: boolean;

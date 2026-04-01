@@ -84,14 +84,14 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Telegram уведомления</Label>
+                <Label>Email уведомления</Label>
                 <p className="text-sm text-muted-foreground">
-                  Получать оповещения в бота
+                  Получать оповещения на почту
                 </p>
               </div>
               <Switch
-                checked={user?.notification_settings?.telegram}
-                onCheckedChange={(v) => toggleSetting("telegram", v)}
+                checked={user?.notification_settings?.email}
+                onCheckedChange={(v) => toggleSetting("email", v)}
                 disabled={loading}
               />
             </div>

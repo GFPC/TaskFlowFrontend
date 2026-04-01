@@ -27,17 +27,17 @@ interface AuthContextType {
     last_name: string;
     username: string;
     password: string;
-    email?: string;
+    email: string;
     tg_username?: string;
-  }) => Promise<{ user_id: number; tg_code: string }>;
-  verifyTelegram: (userId: number, code: string) => Promise<void>;
+  }) => Promise<{ user_id: number; email_sent: boolean; verification_code?: string }>;
+  verifyEmail: (userId: number, code: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
 type LoginResult =
   | { type: "success"; user: User }
-  | { type: "verification_required"; user_id: number; tg_code: string };
+  | { type: "verification_required"; user_id: number; email_sent: boolean; verification_code?: string };
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -75,7 +75,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return {
           type: "verification_required",
           user_id: res.user_id!,
-          tg_code: res.tg_code!,
+          email_sent: res.email_sent ?? true,
+          verification_code: res.verification_code,
         };
       }
 
@@ -98,17 +99,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       last_name: string;
       username: string;
       password: string;
-      email?: string;
+      email: string;
       tg_username?: string;
     }) => {
       const res = await auth.register(data);
-      return { user_id: res.user_id, tg_code: res.tg_code };
+      return { user_id: res.user_id, email_sent: res.email_sent, verification_code: res.verification_code };
     },
     [],
   );
 
-  const verifyTelegram = useCallback(async (userId: number, code: string) => {
-    const res = await auth.verifyTelegram({ user_id: userId, code });
+  const verifyEmail = useCallback(async (userId: number, code: string) => {
+    const res = await auth.verifyEmail({ user_id: userId, code });
     setTokens({
       access_token: res.access_token,
       refresh_token: res.refresh_token,
@@ -136,7 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         login,
         register,
-        verifyTelegram,
+        verifyEmail,
         logout,
         refreshUser,
       }}

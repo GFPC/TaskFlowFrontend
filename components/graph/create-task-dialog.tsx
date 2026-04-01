@@ -18,8 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { tasks as tasksApi } from "@/lib/api";
+import { tasks as tasksApi, projects as projectsApi, type ProjectMember } from "@/lib/api";
 import { toast } from "sonner";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { ru } from "date-fns/locale";
+import { Calendar } from "lucide-react";
+import useSWR from "swr";
 
 interface Props {
   projectSlug: string;
@@ -37,7 +43,14 @@ export function CreateTaskDialog({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("1");
+  const [deadline, setDeadline] = useState<Date | undefined>();
+  const [assigneeUsername, setAssigneeUsername] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const { data: members } = useSWR<ProjectMember[]>(
+    `project-members-${projectSlug}`,
+    () => projectsApi.members(projectSlug)
+  );
 
   async function handleCreate() {
     if (!name.trim()) return toast.error("Введите название");
@@ -48,11 +61,15 @@ export function CreateTaskDialog({
         description,
         priority: Number(priority),
         project_slug: projectSlug,
+        ...(deadline && { deadline: deadline.toISOString() }),
+        ...(assigneeUsername && { assignee_username: assigneeUsername }),
       });
       toast.success("Задача создана");
       setName("");
       setDescription("");
       setPriority("1");
+      setDeadline(undefined);
+      setAssigneeUsername("");
       onCreate();
     } catch {
       toast.error("Ошибка создания задачи");
@@ -85,16 +102,57 @@ export function CreateTaskDialog({
               rows={3}
             />
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Приоритет</Label>
+              <Select value={priority} onValueChange={setPriority}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Низкий</SelectItem>
+                  <SelectItem value="1">Средний</SelectItem>
+                  <SelectItem value="2">Высокий</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Дедлайн</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal"
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {deadline ? format(deadline, "d MMM yyyy", { locale: ru }) : "Не указан"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={deadline}
+                    onSelect={setDeadline}
+                    locale={ru}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
           <div>
-            <Label>Приоритет</Label>
-            <Select value={priority} onValueChange={setPriority}>
+            <Label>Исполнитель</Label>
+            <Select value={assigneeUsername} onValueChange={setAssigneeUsername}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Выберите исполнителя" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="0">Низкий</SelectItem>
-                <SelectItem value="1">Средний</SelectItem>
-                <SelectItem value="2">Высокий</SelectItem>
+                <SelectItem value="">Не назначен</SelectItem>
+                {members?.map((member) => (
+                  <SelectItem key={member.user_id} value={member.username}>
+                    {member.first_name} {member.last_name} (@{member.username})
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

@@ -36,7 +36,8 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [verification, setVerification] = useState<{
     userId: number;
-    tgCode: string;
+    emailSent: boolean;
+    verificationCode?: string;
   } | null>(null);
 
   const updateField = (field: string, value: string) =>
@@ -73,19 +74,28 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!form.email) {
+      toast.error("Email обязателен для регистрации");
+      return;
+    }
+
     setLoading(true);
     try {
-      const payload: Record<string, string> = {
+      const payload = {
         first_name: form.first_name,
         last_name: form.last_name,
         username: form.username,
         password: form.password,
+        email: form.email,
+        ...(form.tg_username && { tg_username: form.tg_username }),
       };
-      if (form.email) payload.email = form.email;
-      if (form.tg_username) payload.tg_username = form.tg_username;
 
-      const result = await register(payload as Parameters<typeof register>[0]);
-      setVerification({ userId: result.user_id, tgCode: result.tg_code });
+      const result = await register(payload);
+      setVerification({
+        userId: result.user_id,
+        emailSent: result.email_sent,
+        verificationCode: result.verification_code,
+      });
     } catch (err) {
       if (err instanceof ApiError) {
         toast.error(err.detail);
@@ -99,7 +109,7 @@ export default function RegisterPage() {
 
   const handleVerificationSuccess = () => {
     setVerification(null);
-    toast.success("Аккаунт создан и верифицирован!");
+    toast.success("Аккаунт создан! Email подтвержден.");
     router.push("/dashboard");
   };
 
@@ -186,14 +196,18 @@ export default function RegisterPage() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="email">Email (необязательно)</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
                 value={form.email}
                 onChange={(e) => updateField("email", e.target.value)}
                 placeholder="ivanov@example.com"
+                required
               />
+              <p className="text-xs text-muted-foreground">
+                На этот адрес будет отправлен код подтверждения
+              </p>
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="tg_username">Telegram (необязательно)</Label>
@@ -226,7 +240,8 @@ export default function RegisterPage() {
       {verification && (
         <VerificationDialog
           userId={verification.userId}
-          tgCode={verification.tgCode}
+          emailSent={verification.emailSent}
+          verificationCode={verification.verificationCode}
           onSuccess={handleVerificationSuccess}
           onClose={() => setVerification(null)}
         />

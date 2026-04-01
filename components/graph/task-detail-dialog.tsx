@@ -32,9 +32,14 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { tasks as tasksApi } from "@/lib/api";
+import { tasks as tasksApi, projects as projectsApi, type ProjectMember } from "@/lib/api";
 import { toast } from "sonner";
-import { Trash2, Save, Play, CheckCircle2 } from "lucide-react";
+import { Trash2, Save, Play, CheckCircle2, Calendar, User } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { ru } from "date-fns/locale";
+import useSWR from "swr";
 
 const statusLabels: Record<string, string> = {
   todo: "К выполнению",
@@ -70,18 +75,31 @@ export function TaskDetailDialog({
   onUpdate,
 }: Props) {
   const [name, setName] = useState(task.name);
-
+  const [description, setDescription] = useState(task.description || "");
   const [status, setStatus] = useState(task.status);
-
   const [priority, setPriority] = useState(String(task.priority ?? 0));
-
+  const [deadline, setDeadline] = useState<Date | undefined>(
+    task.deadline ? new Date(task.deadline) : undefined
+  );
+  const [assigneeUsername, setAssigneeUsername] = useState(task.assignee_username || "");
   const [loading, setLoading] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  const { data: members } = useSWR<ProjectMember[]>(
+    `project-members-${projectSlug}`,
+    () => projectsApi.members(projectSlug)
+  );
 
   async function handleSave() {
     setLoading(true);
     try {
-      const payload: any = { name, priority: Number(priority) };
+      const payload: Record<string, unknown> = {
+        name,
+        description,
+        priority: Number(priority),
+        ...(deadline && { deadline: deadline.toISOString() }),
+        ...(assigneeUsername && { assignee_username: assigneeUsername }),
+      };
       await tasksApi.update(projectSlug, task.id, payload);
       if (status !== task.status) {
         await tasksApi.changeStatus(projectSlug, task.id, status);
@@ -132,6 +150,15 @@ export function TaskDetailDialog({
             <Label>Название</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
+          <div>
+            <Label>Описание</Label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Описание задачи..."
+              rows={3}
+            />
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Статус</Label>
@@ -164,12 +191,47 @@ export function TaskDetailDialog({
               </Select>
             </div>
           </div>
-          {task.assignee && (
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Исполнитель</Label>
-              <p className="text-sm text-muted-foreground">{task.assignee}</p>
+              <Select value={assigneeUsername} onValueChange={setAssigneeUsername}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Выберите исполнителя" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Не назначен</SelectItem>
+                  {members?.map((member) => (
+                    <SelectItem key={member.user_id} value={member.username}>
+                      {member.first_name} {member.last_name} (@{member.username})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          )}
+            <div>
+              <Label>Дедлайн</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal"
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {deadline ? format(deadline, "d MMM yyyy", { locale: ru }) : "Не указан"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={deadline}
+                    onSelect={setDeadline}
+                    locale={ru}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
           <Separator />
           <div className="flex flex-col gap-2">
             <div className="flex gap-2">

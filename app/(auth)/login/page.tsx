@@ -29,7 +29,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [verification, setVerification] = useState<{
     userId: number;
-    tgCode: string;
+    emailSent: boolean;
+    verificationCode?: string;
   } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -42,7 +43,8 @@ export default function LoginPage() {
       if (result.type === "verification_required") {
         setVerification({
           userId: result.user_id,
-          tgCode: result.tg_code,
+          emailSent: result.email_sent,
+          verificationCode: result.verification_code,
         });
       } else {
         toast.success("Вы вошли в систему");
@@ -61,7 +63,7 @@ export default function LoginPage() {
 
   const handleVerificationSuccess = () => {
     setVerification(null);
-    toast.success("Telegram верифицирован! Вы вошли в систему.");
+    toast.success("Email подтвержден! Вы вошли в систему.");
     router.push("/dashboard");
   };
 
@@ -134,7 +136,8 @@ export default function LoginPage() {
       {verification && (
         <VerificationDialog
           userId={verification.userId}
-          tgCode={verification.tgCode}
+          emailSent={verification.emailSent}
+          verificationCode={verification.verificationCode}
           onSuccess={handleVerificationSuccess}
           onClose={() => setVerification(null)}
         />
