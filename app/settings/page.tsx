@@ -84,14 +84,14 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Telegram уведомления</Label>
+                <Label>Уведомления на email</Label>
                 <p className="text-sm text-muted-foreground">
-                  Получать оповещения в бота
+                  Письма о событиях в TaskFlow
                 </p>
               </div>
               <Switch
-                checked={user?.notification_settings?.telegram}
-                onCheckedChange={(v) => toggleSetting("telegram", v)}
+                checked={user?.notification_settings?.email}
+                onCheckedChange={(v) => toggleSetting("email", v)}
                 disabled={loading}
               />
             </div>
@@ -106,6 +106,34 @@ export default function SettingsPage() {
               <Switch
                 checked={user?.notification_settings?.task_assigned}
                 onCheckedChange={(v) => toggleSetting("task_assigned", v)}
+                disabled={loading}
+              />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Завершение задач</Label>
+                <p className="text-sm text-muted-foreground">
+                  Когда задача переведена в «Выполнена»
+                </p>
+              </div>
+              <Switch
+                checked={user?.notification_settings?.task_completed}
+                onCheckedChange={(v) => toggleSetting("task_completed", v)}
+                disabled={loading}
+              />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Готовность зависимости</Label>
+                <p className="text-sm text-muted-foreground">
+                  Когда связанная задача стала доступна к работе
+                </p>
+              </div>
+              <Switch
+                checked={user?.notification_settings?.dependency_ready}
+                onCheckedChange={(v) => toggleSetting("dependency_ready", v)}
                 disabled={loading}
               />
             </div>

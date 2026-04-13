@@ -13,7 +13,6 @@ import {
   LogOut,
   Menu,
   X,
-  Bell,
   Moon,
   Sun,
 } from "lucide-react";
@@ -31,7 +30,6 @@ const navigation = [
   { name: "Дашборд", href: "/dashboard", icon: LayoutDashboard },
   { name: "Команды", href: "/teams", icon: Users },
   { name: "Проекты", href: "/projects", icon: FolderKanban },
-  { name: "Приглашения", href: "/invitations", icon: Bell },
   { name: "Профиль", href: "/profile", icon: User },
   { name: "Настройки", href: "/settings", icon: Settings },
 ];

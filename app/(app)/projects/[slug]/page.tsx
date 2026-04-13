@@ -1,12 +1,13 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import useSWR, { mutate } from "swr";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   projects,
   tasks,
+  teams,
   ApiError,
   type ProjectDetail,
   type Task,
@@ -61,7 +62,17 @@ import {
   Clock,
   AlertTriangle,
   UserPlus,
+  ChevronLeft,
+  ChevronRight,
+  Search,
 } from "lucide-react";
+import {
+  canAssignProjectTasks,
+  canChangeTaskStatus,
+  canDeleteTask,
+  canEditTaskFieldsAdmin,
+} from "@/lib/project-permissions";
+import { TaskDetailDialog } from "@/components/graph/task-detail-dialog";
 
 export default function ProjectDetailPage({
   params,
@@ -103,26 +114,95 @@ export default function ProjectDetailPage({
   const [taskDeadline, setTaskDeadline] = useState("");
   const [createTaskLoading, setCreateTaskLoading] = useState(false);
 
-  // Add Member dialog
+  const [taskDetailOpen, setTaskDetailOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
+  // Add Member dialog (участники команды → проект)
   const [addMemberOpen, setAddMemberOpen] = useState(false);
-  const [memberUsername, setMemberUsername] = useState("");
   const [memberRole, setMemberRole] = useState("developer");
-  const [addMemberLoading, setAddMemberLoading] = useState(false);
+  const [addMemberPage, setAddMemberPage] = useState(1);
+  const [addMemberSearch, setAddMemberSearch] = useState("");
+  const [addingMemberUsername, setAddingMemberUsername] = useState<
+    string | null
+  >(null);
+
+  const ADD_MEMBER_PAGE_SIZE = 8;
+
+  const {
+    data: teamMembersForProject,
+    isLoading: teamMembersForProjectLoading,
+    mutate: mutateTeamMembersForProject,
+  } = useSWR(
+    addMemberOpen && project?.team_slug
+      ? [`team-members-project`, project.team_slug]
+      : null,
+    () => teams.members(project!.team_slug, false),
+  );
+
+  const teamMembersEligible = useMemo(() => {
+    if (!teamMembersForProject || !project) return [];
+    const inProject = new Set(project.members.map((m) => m.username));
+    return teamMembersForProject.filter(
+      (m) => m.is_active && !inProject.has(m.username),
+    );
+  }, [teamMembersForProject, project]);
+
+  const teamMembersFiltered = useMemo(() => {
+    const q = addMemberSearch.trim().toLowerCase();
+    if (!q) return teamMembersEligible;
+    return teamMembersEligible.filter(
+      (m) =>
+        m.username.toLowerCase().includes(q) ||
+        m.first_name.toLowerCase().includes(q) ||
+        m.last_name.toLowerCase().includes(q),
+    );
+  }, [teamMembersEligible, addMemberSearch]);
+
+  const addMemberTotalPages = Math.max(
+    1,
+    Math.ceil(teamMembersFiltered.length / ADD_MEMBER_PAGE_SIZE),
+  );
+
+  const teamMembersPageSlice = useMemo(() => {
+    const start = (addMemberPage - 1) * ADD_MEMBER_PAGE_SIZE;
+    return teamMembersFiltered.slice(start, start + ADD_MEMBER_PAGE_SIZE);
+  }, [teamMembersFiltered, addMemberPage]);
+
+  useEffect(() => {
+    if (!addMemberOpen) {
+      setAddMemberPage(1);
+      setAddMemberSearch("");
+      setAddingMemberUsername(null);
+    }
+  }, [addMemberOpen]);
+
+  useEffect(() => {
+    setAddMemberPage(1);
+  }, [addMemberSearch, teamMembersFiltered.length]);
+
+  useEffect(() => {
+    setAddMemberPage((p) => Math.min(p, addMemberTotalPages));
+  }, [addMemberTotalPages]);
 
   // Delete dialog
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
 
   const handleCreateTask = async () => {
-    if (!taskName.trim()) return;
+    if (!taskName.trim() || !project) return;
     setCreateTaskLoading(true);
     try {
+      const assigneeOk =
+        canAssignProjectTasks(project.user_role) &&
+        taskAssignee &&
+        taskAssignee !== "none";
+      const canMeta = canEditTaskFieldsAdmin(project.user_role);
       await tasks.create(slug, {
         name: taskName.trim(),
         description: taskDescription.trim() || undefined,
-        assignee_username: taskAssignee || undefined,
-        priority: parseInt(taskPriority),
-        deadline: taskDeadline || undefined,
+        assignee_username: assigneeOk ? taskAssignee : undefined,
+        priority: canMeta ? parseInt(taskPriority) : 1,
+        deadline: canMeta && taskDeadline ? taskDeadline : undefined,
         project_slug: slug,
       });
       toast.success("Задача создана");
@@ -163,22 +243,20 @@ export default function ProjectDetailPage({
     }
   };
 
-  const handleAddMember = async () => {
-    if (!memberUsername.trim()) return;
-    setAddMemberLoading(true);
+  const handleAddMemberFromTeam = async (username: string) => {
+    setAddingMemberUsername(username);
     try {
       await projects.addMember(slug, {
-        username: memberUsername.trim(),
+        username,
         role: memberRole,
       });
-      toast.success("Участник добавлен");
-      mutateProject();
-      setAddMemberOpen(false);
-      setMemberUsername("");
+      toast.success("Участник добавлен в проект");
+      await mutateProject();
+      await mutateTeamMembersForProject();
     } catch (err) {
       if (err instanceof ApiError) toast.error(err.detail);
     } finally {
-      setAddMemberLoading(false);
+      setAddingMemberUsername(null);
     }
   };
 
@@ -245,6 +323,9 @@ export default function ProjectDetailPage({
       </Card>
     );
   }
+
+  const userCanAssignTasks = canAssignProjectTasks(project.user_role);
+  const userCanEditTaskMeta = canEditTaskFieldsAdmin(project.user_role);
 
   const roleIcon = (role: string) => {
     switch (role) {
@@ -500,6 +581,11 @@ export default function ProjectDetailPage({
                 <DialogContent className="sm:max-w-lg">
                   <DialogHeader>
                     <DialogTitle>Создать задачу</DialogTitle>
+                    <DialogDescription className="text-left">
+                      {userCanAssignTasks
+                        ? "Исполнитель выбирается из участников проекта."
+                        : "Назначить исполнителя могут только владелец и менеджер проекта."}
+                    </DialogDescription>
                   </DialogHeader>
                   <div className="flex flex-col gap-4">
                     <div className="flex flex-col gap-2">
@@ -519,51 +605,71 @@ export default function ProjectDetailPage({
                         rows={3}
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="flex flex-col gap-2">
-                        <Label>Исполнитель</Label>
-                        <Select
-                          value={taskAssignee}
-                          onValueChange={setTaskAssignee}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Не выбран" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Не выбран</SelectItem>
-                            {project.members.map((m) => (
-                              <SelectItem key={m.username} value={m.username}>
-                                {m.first_name} {m.last_name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        <Label>Приоритет</Label>
-                        <Select
-                          value={taskPriority}
-                          onValueChange={setTaskPriority}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="0">Низкий</SelectItem>
-                            <SelectItem value="1">Средний</SelectItem>
-                            <SelectItem value="2">Высокий</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    <div
+                      className={
+                        userCanAssignTasks || userCanEditTaskMeta
+                          ? "grid grid-cols-2 gap-3"
+                          : "grid grid-cols-1 gap-3"
+                      }
+                    >
+                      {userCanAssignTasks && (
+                        <div className="flex flex-col gap-2">
+                          <Label>Исполнитель</Label>
+                          <Select
+                            value={taskAssignee || "none"}
+                            onValueChange={(v) =>
+                              setTaskAssignee(v === "none" ? "" : v)
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Не назначен" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Не назначен</SelectItem>
+                              {project.members
+                                .filter((m) => m.is_active)
+                                .map((m) => (
+                                  <SelectItem
+                                    key={m.username}
+                                    value={m.username}
+                                  >
+                                    {m.first_name} {m.last_name} (@
+                                    {m.username})
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      {userCanEditTaskMeta && (
+                        <div className="flex flex-col gap-2">
+                          <Label>Приоритет</Label>
+                          <Select
+                            value={taskPriority}
+                            onValueChange={setTaskPriority}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="0">Низкий</SelectItem>
+                              <SelectItem value="1">Средний</SelectItem>
+                              <SelectItem value="2">Высокий</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex flex-col gap-2">
-                      <Label>Дедлайн</Label>
-                      <Input
-                        type="datetime-local"
-                        value={taskDeadline}
-                        onChange={(e) => setTaskDeadline(e.target.value)}
-                      />
-                    </div>
+                    {userCanEditTaskMeta && (
+                      <div className="flex flex-col gap-2">
+                        <Label>Дедлайн</Label>
+                        <Input
+                          type="datetime-local"
+                          value={taskDeadline}
+                          onChange={(e) => setTaskDeadline(e.target.value)}
+                        />
+                      </div>
+                    )}
                   </div>
                   <DialogFooter>
                     <Button
@@ -609,7 +715,20 @@ export default function ProjectDetailPage({
               {tasksList?.map((task: Task) => (
                 <Card
                   key={task.id}
-                  className="hover:border-border transition-colors"
+                  role="button"
+                  tabIndex={0}
+                  className="hover:border-primary/40 transition-colors cursor-pointer"
+                  onClick={() => {
+                    setSelectedTask(task);
+                    setTaskDetailOpen(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelectedTask(task);
+                      setTaskDetailOpen(true);
+                    }
+                  }}
                 >
                   <CardContent className="flex items-center justify-between py-3 px-4">
                     <div className="flex items-center gap-3 min-w-0">
@@ -641,30 +760,43 @@ export default function ProjectDetailPage({
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Select
-                        value={task.status}
-                        onValueChange={(s) => handleStatusChange(task.id, s)}
-                      >
-                        <SelectTrigger className="w-32 h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="todo">К выполнению</SelectItem>
-                          <SelectItem value="in_progress">В работе</SelectItem>
-                          <SelectItem value="review">На проверке</SelectItem>
-                          <SelectItem value="completed">Выполнена</SelectItem>
-                          <SelectItem value="blocked">Заблокирована</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => handleDeleteTask(task.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                    <div
+                      className="flex items-center gap-1 shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      {canChangeTaskStatus(project.user_role) && (
+                        <Select
+                          value={task.status}
+                          onValueChange={(s) => handleStatusChange(task.id, s)}
+                        >
+                          <SelectTrigger className="w-32 h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="todo">К выполнению</SelectItem>
+                            <SelectItem value="in_progress">В работе</SelectItem>
+                            <SelectItem value="review">На проверке</SelectItem>
+                            <SelectItem value="completed">Выполнена</SelectItem>
+                            <SelectItem value="blocked">Заблокирована</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {canDeleteTask(
+                        project.user_role,
+                        { creator_username: task.creator_username },
+                        user?.username,
+                      ) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteTask(task.id)}
+                          aria-label="Удалить задачу"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -687,24 +819,18 @@ export default function ProjectDetailPage({
                     Добавить
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="sm:max-w-lg">
                   <DialogHeader>
-                    <DialogTitle>Добавить участника</DialogTitle>
+                    <DialogTitle>Добавить из команды</DialogTitle>
                     <DialogDescription>
-                      Участник должен быть в команде {project.team_name}
+                      Только участники команды «{project.team_name}», ещё не
+                      входящие в этот проект. Нажмите на строку, чтобы
+                      добавить с выбранной ролью.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="flex flex-col gap-4">
                     <div className="flex flex-col gap-2">
-                      <Label>Username</Label>
-                      <Input
-                        value={memberUsername}
-                        onChange={(e) => setMemberUsername(e.target.value)}
-                        placeholder="username"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Label>Роль</Label>
+                      <Label>Роль в проекте</Label>
                       <Select value={memberRole} onValueChange={setMemberRole}>
                         <SelectTrigger>
                           <SelectValue />
@@ -716,22 +842,111 @@ export default function ProjectDetailPage({
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        className="pl-9"
+                        value={addMemberSearch}
+                        onChange={(e) => setAddMemberSearch(e.target.value)}
+                        placeholder="Поиск по имени или логину…"
+                      />
+                    </div>
+                    <div className="rounded-lg border min-h-[220px] max-h-[min(320px,50vh)] overflow-y-auto">
+                      {teamMembersForProjectLoading ? (
+                        <div className="p-4 space-y-3">
+                          {[1, 2, 3, 4].map((i) => (
+                            <Skeleton key={i} className="h-12 w-full" />
+                          ))}
+                        </div>
+                      ) : teamMembersFiltered.length === 0 ? (
+                        <p className="text-sm text-muted-foreground p-6 text-center">
+                          {teamMembersEligible.length === 0
+                            ? "Все участники команды уже в проекте."
+                            : "Никого не найдено. Измените поиск."}
+                        </p>
+                      ) : (
+                        <ul className="divide-y">
+                          {teamMembersPageSlice.map((m) => (
+                            <li key={m.id}>
+                              <button
+                                type="button"
+                                disabled={addingMemberUsername !== null}
+                                className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/80 transition-colors disabled:opacity-60"
+                                onClick={() =>
+                                  void handleAddMemberFromTeam(m.username)
+                                }
+                              >
+                                <Avatar className="h-9 w-9 shrink-0">
+                                  <AvatarFallback className="text-xs">
+                                    {m.first_name[0]}
+                                    {m.last_name[0]}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-medium truncate">
+                                    {m.first_name} {m.last_name}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    @{m.username}
+                                  </p>
+                                </div>
+                                {addingMemberUsername === m.username ? (
+                                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                                ) : (
+                                  <UserPlus className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                )}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    {teamMembersFiltered.length > 0 && (
+                      <div className="flex items-center justify-between gap-2 pt-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="gap-1"
+                          disabled={addMemberPage <= 1}
+                          onClick={() =>
+                            setAddMemberPage((p) => Math.max(1, p - 1))
+                          }
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Назад
+                        </Button>
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          {addMemberPage} / {addMemberTotalPages}
+                          <span className="text-muted-foreground/70">
+                            {" "}
+                            ({teamMembersFiltered.length})
+                          </span>
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="gap-1"
+                          disabled={addMemberPage >= addMemberTotalPages}
+                          onClick={() =>
+                            setAddMemberPage((p) =>
+                              Math.min(addMemberTotalPages, p + 1),
+                            )
+                          }
+                        >
+                          Вперёд
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                   <DialogFooter>
                     <Button
                       variant="outline"
                       onClick={() => setAddMemberOpen(false)}
                     >
-                      Отмена
-                    </Button>
-                    <Button
-                      onClick={handleAddMember}
-                      disabled={addMemberLoading}
-                    >
-                      {addMemberLoading && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      )}
-                      Добавить
+                      Закрыть
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -815,6 +1030,22 @@ export default function ProjectDetailPage({
           </div>
         </TabsContent>
       </Tabs>
+
+      {selectedTask && (
+        <TaskDetailDialog
+          task={selectedTask}
+          projectSlug={slug}
+          open={taskDetailOpen}
+          onClose={() => {
+            setTaskDetailOpen(false);
+            setSelectedTask(null);
+          }}
+          onUpdate={() => {
+            mutateTasks();
+            mutate(`task-stats-${slug}`);
+          }}
+        />
+      )}
     </div>
   );
 }

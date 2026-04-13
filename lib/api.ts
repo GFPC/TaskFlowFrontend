@@ -1,4 +1,4 @@
-const API_BASE = 1
+const API_BASE = process.env.NODE_ENV === "production"
   ? "https://corsair-taskflow.site/api/v1"
   : "http://localhost:8000/api/v1";
 
@@ -158,14 +158,14 @@ export const auth = {
     last_name: string;
     username: string;
     password: string;
-    email?: string;
-    tg_username?: string;
+    email: string;
   }) =>
     request<{
       user_id: number;
-      tg_code: string;
       requires_verification: boolean;
       message: string;
+      verification_code?: string | null;
+      email_sent: boolean;
     }>("/auth/register", { method: "POST", body: JSON.stringify(data) }),
 
   login: (data: { username: string; password: string }) =>
@@ -177,17 +177,18 @@ export const auth = {
       expires_at?: string;
       user?: User;
       user_id?: number;
-      tg_code?: string;
+      verification_code?: string | null;
+      email_sent?: boolean;
     }>("/auth/login", { method: "POST", body: JSON.stringify(data) }),
 
-  verifyTelegram: (data: { user_id: number; code: string }) =>
+  verifyEmail: (data: { user_id: number; code: string }) =>
     request<{
       access_token: string;
       refresh_token: string;
       token_type: string;
       expires_at: string;
       user: User;
-    }>("/auth/verify-telegram", { method: "POST", body: JSON.stringify(data) }),
+    }>("/auth/verify-email", { method: "POST", body: JSON.stringify(data) }),
 
   refresh: (refresh_token: string) =>
     request<{
@@ -211,8 +212,9 @@ export const auth = {
       success: boolean;
       message: string;
       user_id?: number;
-      recovery_code?: string;
+      recovery_code?: string | null;
       expires_at?: string;
+      email_sent?: boolean;
     }>("/auth/recovery/initiate", {
       method: "POST",
       body: JSON.stringify({ username }),
@@ -234,7 +236,6 @@ export const users = {
       first_name: string;
       last_name: string;
       email: string;
-      tg_username: string;
     }>,
   ) =>
     request<User>("/users/me", { method: "PUT", body: JSON.stringify(data) }),
@@ -338,7 +339,7 @@ export const teams = {
       body: JSON.stringify(data),
     }),
 
-  myInvitations: () => request<TeamInvitation[]>("/teams/invitations/me"),
+  myInvitations: () => request<TeamInvitation[]>("/teams/invitations"),
 
   teamInvitations: (slug: string, status?: string) =>
     request<TeamInvitation[]>(
@@ -459,7 +460,7 @@ export const projects = {
       body: JSON.stringify(data),
     }),
 
-  myInvitations: () => request<ProjectInvitation[]>("/projects/invitations/me"),
+  myInvitations: () => request<ProjectInvitation[]>("/projects/invitations"),
 
   acceptInvitation: (id: number) =>
     request(`/projects/invitations/${id}/accept`, { method: "POST" }),
@@ -563,7 +564,7 @@ export const tasks = {
     request<GraphData>(`/projects/${projectSlug}/tasks/graph`),
 
   saveGraph: (projectSlug: string, data: GraphData) =>
-    request<{ message: string }>(`/projects/${projectSlug}/graph`, {
+    request<{ message: string }>(`/projects/${projectSlug}/tasks/graph`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
@@ -633,8 +634,7 @@ export interface User {
   last_name: string;
   username: string;
   email?: string;
-  tg_username?: string;
-  tg_verified?: boolean;
+  email_verified?: boolean;
   role?: string;
   is_active?: boolean;
   is_superuser?: boolean;
@@ -647,7 +647,6 @@ export interface User {
     language?: string;
   };
   notification_settings?: {
-    telegram?: boolean;
     email?: boolean;
     task_assigned?: boolean;
     task_completed?: boolean;
@@ -660,7 +659,7 @@ export interface PublicUser {
   first_name: string;
   last_name: string;
   username: string;
-  tg_username?: string;
+  email?: string;
   role?: string;
   created_at?: string;
 }
@@ -902,7 +901,9 @@ export interface GraphEdge {
   target: string;
   type?: string;
   data?: {
-    actions: { type: string; delay: number }[];
+    dependency_id?: number;
+    description?: string;
+    actions?: { type: string; delay?: number }[];
   };
   animated?: boolean;
   label?: string;

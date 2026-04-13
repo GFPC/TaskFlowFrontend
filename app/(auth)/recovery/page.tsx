@@ -32,10 +32,14 @@ export default function RecoveryPage() {
     setLoading(true);
     try {
       const res = await auth.recoveryInitiate(username);
-      if (res.success && res.recovery_code) {
-        setRecoveryCode(res.recovery_code);
+      if (res.success) {
         setStep("reset");
-        toast.success("Код восстановления отправлен в Telegram");
+        if (res.recovery_code) setRecoveryCode(res.recovery_code);
+        toast.success(
+          res.email_sent !== false
+            ? "Код отправлен на email, привязанный к аккаунту. Проверьте спам."
+            : "Используйте код из ответа сервера, если он указан.",
+        );
       } else {
         toast.info("Если пользователь существует, код будет отправлен");
       }
@@ -56,7 +60,7 @@ export default function RecoveryPage() {
         recovery_code: recoveryCode,
         new_password: newPassword,
       });
-      toast.success("Пароль изменен! Войдите с новым паролем.");
+      toast.success("Пароль изменён. Войдите с новым паролем.");
       router.push("/login");
     } catch (err) {
       if (err instanceof ApiError) toast.error(err.detail);
@@ -77,8 +81,8 @@ export default function RecoveryPage() {
         </CardTitle>
         <CardDescription className="text-balance">
           {step === "initiate"
-            ? "Введите ваш логин для получения кода восстановления"
-            : "Введите новый пароль"}
+            ? "Введите логин — код придёт на email аккаунта"
+            : "Введите код из письма и новый пароль"}
         </CardDescription>
       </CardHeader>
 
@@ -119,7 +123,7 @@ export default function RecoveryPage() {
                 id="code"
                 value={recoveryCode}
                 onChange={(e) => setRecoveryCode(e.target.value)}
-                placeholder="Код из Telegram"
+                placeholder="Код из письма"
                 required
               />
             </div>

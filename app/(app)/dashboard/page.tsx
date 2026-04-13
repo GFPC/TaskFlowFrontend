@@ -20,9 +20,8 @@ import {
   Plus,
   ArrowRight,
   CheckCircle2,
-  Clock,
-  AlertCircle,
 } from "lucide-react";
+import { MyTasksFeed } from "@/components/dashboard/my-tasks-feed";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -105,6 +104,8 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <MyTasksFeed />
 
       {/* Teams */}
       <section>

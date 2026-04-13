@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import ReactFlow, {
   Background,
+  BackgroundVariant,
   Controls,
   MiniMap,
   useNodesState,
@@ -24,7 +25,7 @@ import ReactFlow, {
 
 import "reactflow/dist/style.css";
 
-import { tasks as tasksApi, type GraphData } from "@/lib/api";
+import { tasks as tasksApi, ApiError, type GraphData } from "@/lib/api";
 
 import { Button } from "@/components/ui/button";
 
@@ -34,7 +35,6 @@ import {
   Loader2,
   RefreshCw,
   LayoutGrid,
-  Filter,
 } from "lucide-react";
 
 import { TaskNode } from "@/components/graph/task-node";
@@ -48,8 +48,6 @@ import { CreateTaskDialog } from "@/components/graph/create-task-dialog";
 import { toast } from "sonner";
 
 import { debounce } from "lodash";
-
-import { cn } from "@/lib/utils";
 
 import { Separator } from "@/components/ui/separator";
 
@@ -65,7 +63,11 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const nodeTypes = { taskNode: TaskNode };
-const edgeTypes = { dependency: DependencyEdge };
+const edgeTypes = {
+  dependency: DependencyEdge,
+  blocks: DependencyEdge,
+  simple: DependencyEdge,
+};
 
 function graphToNodes(graphData: GraphData): Node[] {
   return graphData.nodes.map((n) => ({
@@ -76,17 +78,36 @@ function graphToNodes(graphData: GraphData): Node[] {
   }));
 }
 
+function normalizeEdgeType(
+  t: string | undefined,
+): keyof typeof edgeTypes {
+  if (t === "blocks" || t === "simple" || t === "dependency") return t;
+  return "dependency";
+}
+
 function graphToEdges(graphData: GraphData): Edge[] {
   return graphData.edges.map((e) => ({
     id: String(e.id),
     source: String(e.source),
     target: String(e.target),
-    type: "dependency",
+    type: normalizeEdgeType(e.type),
     animated: e.animated ?? true,
     label: e.label,
-    markerEnd: { type: MarkerType.ArrowClosed },
-    data: { actions: e.data?.actions ?? [] },
-    style: { stroke: "var(--primary)" },
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      width: 20,
+      height: 20,
+      color: "var(--primary)",
+    },
+    data: {
+      dependency_id: e.data?.dependency_id,
+      description: e.data?.description,
+      actions: e.data?.actions ?? [],
+    },
+    style: {
+      stroke: "var(--primary)",
+      strokeLinecap: "round",
+    },
   }));
 }
 
@@ -99,7 +120,9 @@ export default function GraphPage() {
     data: graphData,
     mutate,
     isLoading: graphLoading,
-  } = useSWR(`graph-${slug}`, () => tasksApi.graph(slug));
+  } = useSWR(`graph-${slug}`, () => tasksApi.graph(slug), {
+    dedupingInterval: 30_000,
+  });
 
   const [nodes, setNodes, onNodesChangeState] = useNodesState([]);
 
@@ -116,35 +139,41 @@ export default function GraphPage() {
 
   const [snapGrid, setSnapGrid] = useState<[number, number]>([20, 20]);
 
+  const [viewport, setViewport] = useState({ x: 0, y: 0, zoom: 1 });
+
   useEffect(() => {
     if (graphData) {
       setNodes(graphToNodes(graphData));
       setEdges(graphToEdges(graphData));
+      if (graphData.viewport) setViewport(graphData.viewport);
     }
   }, [graphData, setNodes, setEdges]);
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
       onEdgesChangeState(changes);
-      const hasRemove = changes.some((c) => c.type === "remove");
-      if (hasRemove) {
-        changes.forEach(async (c) => {
-          if (c.type === "remove") {
-            try {
-              const edge = edges.find((e) => e.id === c.id);
-              if (edge) {
-                const depId = Number(edge.id.replace("e", ""));
-                if (!isNaN(depId)) {
-                  await tasksApi.deleteDependency(slug, depId);
-                  toast.success("Связь удалена");
-                }
-              }
-            } catch (err: any) {
-              toast.error(err.detail || "Ошибка удаления связи");
-              mutate();
-            }
+      for (const c of changes) {
+        if (c.type !== "remove") continue;
+        const edge = edges.find((e) => e.id === c.id);
+        if (!edge) continue;
+        const depId = (edge.data as { dependency_id?: number } | undefined)
+          ?.dependency_id;
+        if (depId == null) {
+          toast.error("Не удалось удалить связь — обновите граф");
+          void mutate();
+          continue;
+        }
+        void (async () => {
+          try {
+            await tasksApi.deleteDependency(slug, depId);
+            toast.success("Связь удалена");
+          } catch (err: unknown) {
+            const detail =
+              err instanceof ApiError ? err.detail : "Ошибка удаления связи";
+            toast.error(detail);
+            void mutate();
           }
-        });
+        })();
       }
     },
     [onEdgesChangeState, edges, slug, mutate],
@@ -152,27 +181,24 @@ export default function GraphPage() {
 
   const debouncedSave = useMemo(
     () =>
-      debounce(async (nds: Node[]) => {
+      debounce(async (nds: Node[], eds: Edge[], vp: typeof viewport) => {
         const updatedGraph: GraphData = {
           nodes: nds.map((n) => ({
             id: n.id as string,
             type: n.type || "taskNode",
-
-            data: n.data as any,
-
+            data: n.data as GraphData["nodes"][0]["data"],
             position: n.position,
           })),
-
-          edges: edges.map((e) => ({
+          edges: eds.map((e) => ({
             id: e.id,
             source: e.source as string,
             target: e.target as string,
+            type: normalizeEdgeType(e.type),
             animated: e.animated,
-
             label: typeof e.label === "string" ? e.label : undefined,
-
-            data: e.data as any,
+            data: e.data as GraphData["edges"][0]["data"],
           })),
+          viewport: vp,
         };
         try {
           await tasksApi.saveGraph(slug, updatedGraph);
@@ -180,55 +206,78 @@ export default function GraphPage() {
         } catch {
           toast.error("Ошибка автосохранения");
         }
-      }, 1000),
-    [slug, edges],
+      }, 500),
+    [slug],
   );
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       onNodesChangeState(changes);
       const hasPosChange = changes.some(
-        (c) => c.type === "position" && (c as any).dragging === false,
+        (c) =>
+          c.type === "position" &&
+          (c as { dragging?: boolean }).dragging === false,
       );
       if (hasPosChange) {
         setNodes((nds) => {
-          debouncedSave(nds);
+          debouncedSave(nds, edges, viewport);
           return nds;
         });
       }
     },
-    [onNodesChangeState, debouncedSave, setNodes],
+    [onNodesChangeState, debouncedSave, setNodes, edges, viewport],
   );
 
   const onConnect = useCallback(
     async (connection: Connection) => {
       if (!connection.source || !connection.target) return;
 
+      const sourceNode = nodes.find((n) => n.id === connection.source);
+      const targetNode = nodes.find((n) => n.id === connection.target);
+      const sourceTaskId = (sourceNode?.data as { id?: number } | undefined)?.id;
+      const targetTaskId = (targetNode?.data as { id?: number } | undefined)?.id;
+      if (sourceTaskId == null || targetTaskId == null) {
+        toast.error("Не удалось определить задачи для связи");
+        return;
+      }
+
       const newEdge: Edge = {
         id: `e${connection.source}-${connection.target}`,
         source: connection.source,
         target: connection.target,
-        type: "dependency",
+        type: "blocks",
         animated: true,
-        markerEnd: { type: MarkerType.ArrowClosed },
-        style: { stroke: "var(--primary)" },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 20,
+          height: 20,
+          color: "var(--primary)",
+        },
+        style: {
+          stroke: "var(--primary)",
+          strokeLinecap: "round",
+        },
       };
 
       setEdges((eds) => addEdge(newEdge, eds));
 
       try {
-        await tasksApi.createDependency(slug, Number(connection.source), {
-          target_task_id: Number(connection.target),
+        await tasksApi.createDependency(slug, sourceTaskId, {
+          target_task_id: targetTaskId,
           dependency_type: "blocks",
         });
         toast.success("Зависимость добавлена");
         mutate();
-      } catch (err: any) {
+      } catch (err: unknown) {
         setEdges((eds) => eds.filter((e) => e.id !== newEdge.id));
-        toast.error(err.detail || "Ошибка: возможен цикл зависимостей");
+        const detail =
+          err instanceof ApiError
+            ? err.detail
+            : "Ошибка: возможен цикл зависимостей";
+        toast.error(detail);
       }
     },
-    [slug, setEdges, mutate],
+    [slug, setEdges, mutate, nodes],
   );
 
   const onNodeClick = useCallback((_: any, node: Node) => {
@@ -260,8 +309,9 @@ export default function GraphPage() {
 
   if (graphLoading && !graphData) {
     return (
-      <div className="flex items-center justify-center h-[80vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex flex-col items-center justify-center gap-3 h-[calc(100vh-4rem)] bg-muted/20">
+        <Loader2 className="h-9 w-9 animate-spin text-primary/70" />
+        <p className="text-sm text-muted-foreground">Загрузка графа…</p>
       </div>
     );
   }
@@ -269,7 +319,7 @@ export default function GraphPage() {
   const handleDeleteNode = async () => {
     if (!nodeToDelete) return;
     try {
-      const taskId = Number(nodeToDelete.id);
+      const taskId = (nodeToDelete.data as { id: number }).id;
       await tasksApi.delete(slug, taskId);
       toast.success("Задача удалена");
       setShowDeleteDialog(false);
@@ -281,7 +331,7 @@ export default function GraphPage() {
     }
   };
   return (
-    <div className="h-[calc(100vh-4rem)] relative">
+    <div className="h-[calc(100vh-4rem)] relative bg-gradient-to-b from-muted/30 via-background to-background">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -289,22 +339,52 @@ export default function GraphPage() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
+        onMoveEnd={(_, v) => setViewport(v)}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
-        className="bg-background"
+        fitViewOptions={{ padding: 0.15, maxZoom: 1.35 }}
+        minZoom={0.15}
+        maxZoom={1.75}
+        proOptions={{ hideAttribution: true }}
+        connectionLineStyle={{
+          stroke: "var(--primary)",
+          strokeWidth: 2,
+          strokeLinecap: "round",
+        }}
+        className="[&_.react-flow__edge-path]:stroke-linecap-round"
         deleteKeyCode={["Backspace", "Delete"]}
         snapToGrid={snapToGrid}
         snapGrid={snapGrid}
       >
-        <Background gap={20} size={1} />
-        <Controls />
-        <MiniMap nodeStrokeWidth={3} zoomable pannable />
-        <Panel position="top-left" className="flex flex-col gap-2">
-          <div className="flex gap-2 bg-background/80 backdrop-blur p-1 rounded-lg border shadow-sm">
+        <Background
+          variant={BackgroundVariant.Dots}
+          gap={22}
+          size={1.15}
+          color="hsl(var(--muted-foreground) / 0.18)"
+          className="[&>*]:opacity-100"
+        />
+        <Controls
+          showInteractive={false}
+          className="!m-3 !rounded-xl !border !border-border/60 !bg-card/95 !shadow-lg !backdrop-blur-sm [&_button]:!rounded-lg [&_button]:!border-0 [&_button:hover]:!bg-muted"
+        />
+        <MiniMap
+          nodeStrokeWidth={2}
+          zoomable
+          pannable
+          maskColor="hsl(var(--background) / 0.88)"
+          className="!m-3 !rounded-xl !border !border-border/60 !bg-card/90 !shadow-lg !backdrop-blur-sm [&_.react-flow__minimap-mask]:opacity-90"
+          nodeColor={(n) => {
+            const c = (n.data as { status_color?: string })?.status_color;
+            return c ?? "hsl(var(--muted))";
+          }}
+        />
+        <Panel position="top-left" className="m-3 flex flex-col gap-2">
+          <div className="flex flex-wrap gap-1.5 rounded-2xl border border-border/60 bg-card/90 p-1.5 shadow-lg backdrop-blur-md">
             <Button
               variant="ghost"
               size="sm"
+              className="rounded-xl"
               onClick={() => router.push(`/projects/${slug}`)}
             >
               <ArrowLeft className="h-4 w-4 mr-1" />
@@ -313,8 +393,8 @@ export default function GraphPage() {
             <Separator orientation="vertical" className="h-8" />
             <Button
               size="sm"
+              className="rounded-xl gap-1 shadow-sm"
               onClick={() => setShowCreate(true)}
-              className="gap-1"
             >
               <Plus className="h-4 w-4" />
               Задача
@@ -322,43 +402,42 @@ export default function GraphPage() {
             <Button
               variant="outline"
               size="sm"
+              className="rounded-xl gap-1"
               onClick={() => mutate()}
-              className="gap-1"
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
 
-          <div className="flex flex-col gap-1 bg-background/80 backdrop-blur p-2 rounded-lg border shadow-sm w-48">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1 px-1">
-              Инструменты
+          <div className="w-fit min-w-[11rem] rounded-2xl border border-border/60 bg-card/90 p-3 shadow-lg backdrop-blur-md">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+              Сетка
             </p>
-            <div className="grid grid-cols-2 gap-1">
-              <Button
-                variant={snapToGrid ? "default" : "outline"}
-                size="sm"
-                className="text-[10px] h-7 px-1"
-                onClick={() => setSnapToGrid(!snapToGrid)}
-              >
-                <LayoutGrid className="h-3 w-3 mr-1" />{" "}
-                {snapToGrid ? "Сетка вкл" : "Автосетка"}
-              </Button>
-            </div>
+            <Button
+              variant={snapToGrid ? "default" : "outline"}
+              size="sm"
+              className="w-full rounded-xl text-xs h-8"
+              onClick={() => setSnapToGrid(!snapToGrid)}
+            >
+              <LayoutGrid className="h-3.5 w-3.5 mr-2" />
+              {snapToGrid ? "Привязка к сетке" : "Свободное позиционирование"}
+            </Button>
           </div>
         </Panel>
 
         <Panel
           position="bottom-right"
-          className="bg-background/80 backdrop-blur p-2 rounded-lg border text-[10px] text-muted-foreground"
+          className="m-3 rounded-2xl border border-border/60 bg-card/90 px-4 py-3 text-[11px] text-muted-foreground shadow-lg backdrop-blur-md"
         >
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
+          <p className="font-semibold text-foreground mb-2 text-xs">Легенда</p>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2.5">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-success shadow-[0_0_8px_hsl(var(--success)/0.5)]" />
               <span>Готова к работе</span>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-primary" />
-              <span>В процессе</span>
+            <div className="flex items-center gap-2.5">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-primary" />
+              <span>В работе / связь</span>
             </div>
           </div>
         </Panel>
