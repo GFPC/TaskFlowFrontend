@@ -29,13 +29,7 @@ import { tasks as tasksApi, ApiError, type GraphData } from "@/lib/api";
 
 import { Button } from "@/components/ui/button";
 
-import {
-  ArrowLeft,
-  Plus,
-  Loader2,
-  RefreshCw,
-  LayoutGrid,
-} from "lucide-react";
+import { ArrowLeft, Plus, Loader2, RefreshCw, LayoutGrid } from "lucide-react";
 
 import { TaskNode } from "@/components/graph/task-node";
 
@@ -78,9 +72,7 @@ function graphToNodes(graphData: GraphData): Node[] {
   }));
 }
 
-function normalizeEdgeType(
-  t: string | undefined,
-): keyof typeof edgeTypes {
+function normalizeEdgeType(t: string | undefined): keyof typeof edgeTypes {
   if (t === "blocks" || t === "simple" || t === "dependency") return t;
   return "dependency";
 }
@@ -234,8 +226,10 @@ export default function GraphPage() {
 
       const sourceNode = nodes.find((n) => n.id === connection.source);
       const targetNode = nodes.find((n) => n.id === connection.target);
-      const sourceTaskId = (sourceNode?.data as { id?: number } | undefined)?.id;
-      const targetTaskId = (targetNode?.data as { id?: number } | undefined)?.id;
+      const sourceTaskId = (sourceNode?.data as { id?: number } | undefined)
+        ?.id;
+      const targetTaskId = (targetNode?.data as { id?: number } | undefined)
+        ?.id;
       if (sourceTaskId == null || targetTaskId == null) {
         toast.error("Не удалось определить задачи для связи");
         return;
@@ -426,7 +420,7 @@ export default function GraphPage() {
         </Panel>
 
         <Panel
-          position="bottom-right"
+          position="top-right"
           className="m-3 rounded-2xl border border-border/60 bg-card/90 px-4 py-3 text-[11px] text-muted-foreground shadow-lg backdrop-blur-md"
         >
           <p className="font-semibold text-foreground mb-2 text-xs">Легенда</p>
