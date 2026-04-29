@@ -35,7 +35,6 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [verification, setVerification] = useState<{
     userId: number;
-    debugVerificationCode: string | null;
     emailSent: boolean;
   } | null>(null);
 
@@ -88,7 +87,6 @@ export default function RegisterPage() {
       });
       setVerification({
         userId: result.user_id,
-        debugVerificationCode: result.verification_code,
         emailSent: result.email_sent,
       });
     } catch (err) {
@@ -227,7 +225,6 @@ export default function RegisterPage() {
       {verification && (
         <VerificationDialog
           userId={verification.userId}
-          debugVerificationCode={verification.debugVerificationCode}
           emailSent={verification.emailSent}
           onSuccess={handleVerificationSuccess}
           onClose={() => setVerification(null)}

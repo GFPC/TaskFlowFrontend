@@ -20,7 +20,6 @@ import {
 export interface RegisterResult {
   user_id: number;
   email_sent: boolean;
-  verification_code: string | null;
 }
 
 interface AuthContextType {
@@ -45,7 +44,6 @@ type LoginResult =
   | {
       type: "verification_required";
       user_id: number;
-      verification_code: string | null;
       email_sent: boolean;
     };
 
@@ -85,7 +83,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return {
           type: "verification_required",
           user_id: res.user_id!,
-          verification_code: res.verification_code ?? null,
           email_sent: res.email_sent ?? true,
         };
       }
@@ -115,7 +112,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return {
         user_id: res.user_id,
         email_sent: res.email_sent,
-        verification_code: res.verification_code ?? null,
       };
     },
     [],

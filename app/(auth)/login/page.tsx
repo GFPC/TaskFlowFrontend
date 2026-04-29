@@ -29,7 +29,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [verification, setVerification] = useState<{
     userId: number;
-    debugVerificationCode: string | null;
     emailSent: boolean;
   } | null>(null);
 
@@ -43,7 +42,6 @@ export default function LoginPage() {
       if (result.type === "verification_required") {
         setVerification({
           userId: result.user_id,
-          debugVerificationCode: result.verification_code,
           emailSent: result.email_sent,
         });
       } else {
@@ -136,7 +134,6 @@ export default function LoginPage() {
       {verification && (
         <VerificationDialog
           userId={verification.userId}
-          debugVerificationCode={verification.debugVerificationCode}
           emailSent={verification.emailSent}
           onSuccess={handleVerificationSuccess}
           onClose={() => setVerification(null)}
