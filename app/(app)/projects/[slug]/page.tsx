@@ -1,18 +1,19 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import useSWR, { mutate } from "swr";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   projects,
   tasks,
   teams,
-  ApiError,
+  formatApiError,
   type ProjectDetail,
   type Task,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { cn } from "@/lib/utils";
 import {
   Card,
   CardContent,
@@ -44,6 +45,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import {
   GitBranch,
@@ -65,14 +76,24 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
+  PlayCircle,
+  ListFilter,
 } from "lucide-react";
 import {
   canAssignProjectTasks,
   canChangeTaskStatus,
+  canCreateTasksInProject,
   canDeleteTask,
   canEditTaskFieldsAdmin,
+  canEditTaskDescription,
+  normalizeProjectUserRole,
 } from "@/lib/project-permissions";
 import { TaskDetailDialog } from "@/components/graph/task-detail-dialog";
+
+function isTaskOverdue(t: Task): boolean {
+  if (!t.deadline || t.status === "completed") return false;
+  return new Date(t.deadline).getTime() < Date.now();
+}
 
 export default function ProjectDetailPage({
   params,
@@ -82,25 +103,38 @@ export default function ProjectDetailPage({
   const { slug } = use(params);
   const { user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const openedFromTaskQuery = useRef<string | null>(null);
+
+  /** Без username в ключе SWR отдаётся кэш проекта «чужого» пользователя после смены аккаунта. */
+  const swrIdentity = user?.username ?? "__";
 
   const {
     data: project,
     isLoading,
     mutate: mutateProject,
-  } = useSWR<ProjectDetail>(`project-${slug}`, () => projects.get(slug), {
-    dedupingInterval: 60000,
-  });
+  } = useSWR<ProjectDetail>(
+    slug ? (["project", slug, swrIdentity] as const) : null,
+    () => projects.get(slug),
+    {
+      dedupingInterval: 60000,
+    },
+  );
 
   const {
     data: tasksList,
     isLoading: tasksLoading,
     mutate: mutateTasks,
-  } = useSWR(project ? `tasks-${slug}` : null, () => tasks.list(slug), {
-    dedupingInterval: 30000,
-  });
+  } = useSWR(
+    project ? (["tasks", slug, swrIdentity] as const) : null,
+    () => tasks.list(slug),
+    {
+      dedupingInterval: 30000,
+    },
+  );
 
   const { data: taskStats } = useSWR(
-    project ? `task-stats-${slug}` : null,
+    project ? (["task-stats", slug, swrIdentity] as const) : null,
     () => tasks.stats(slug),
     { dedupingInterval: 300000 },
   );
@@ -116,6 +150,10 @@ export default function ProjectDetailPage({
 
   const [taskDetailOpen, setTaskDetailOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [taskPendingDelete, setTaskPendingDelete] = useState<Task | null>(
+    null,
+  );
+  const [taskSearch, setTaskSearch] = useState("");
 
   // Add Member dialog (участники команды → проект)
   const [addMemberOpen, setAddMemberOpen] = useState(false);
@@ -184,12 +222,40 @@ export default function ProjectDetailPage({
     setAddMemberPage((p) => Math.min(p, addMemberTotalPages));
   }, [addMemberTotalPages]);
 
+  useEffect(() => {
+    openedFromTaskQuery.current = null;
+    setTaskSearch("");
+  }, [slug]);
+
+  useEffect(() => {
+    if (!taskDetailOpen) {
+      openedFromTaskQuery.current = null;
+    }
+  }, [taskDetailOpen]);
+
+  useEffect(() => {
+    const tid = searchParams.get("task");
+    if (!tid || !tasksList?.length) return;
+    const id = Number(tid);
+    if (!Number.isFinite(id)) return;
+    const key = `${slug}:${id}`;
+    if (openedFromTaskQuery.current === key) return;
+    const t = tasksList.find((x) => x.id === id);
+    if (t) {
+      openedFromTaskQuery.current = key;
+      setSelectedTask(t);
+      setTaskDetailOpen(true);
+      router.replace(`/projects/${slug}`, { scroll: false });
+    }
+  }, [searchParams, tasksList, slug, router]);
+
   // Delete dialog
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
 
   const handleCreateTask = async () => {
     if (!taskName.trim() || !project) return;
+    if (!canCreateTasksInProject(project.user_role)) return;
     setCreateTaskLoading(true);
     try {
       const assigneeOk =
@@ -197,17 +263,26 @@ export default function ProjectDetailPage({
         taskAssignee &&
         taskAssignee !== "none";
       const canMeta = canEditTaskFieldsAdmin(project.user_role);
+      const canDesc = canEditTaskDescription(project.user_role);
       await tasks.create(slug, {
         name: taskName.trim(),
-        description: taskDescription.trim() || undefined,
+        ...(canDesc && taskDescription.trim()
+          ? { description: taskDescription.trim() }
+          : {}),
         assignee_username: assigneeOk ? taskAssignee : undefined,
-        priority: canMeta ? parseInt(taskPriority) : 1,
-        deadline: canMeta && taskDeadline ? taskDeadline : undefined,
+        ...(canMeta
+          ? {
+              priority: parseInt(taskPriority, 10),
+              ...(taskDeadline
+                ? { deadline: new Date(taskDeadline).toISOString() }
+                : {}),
+            }
+          : {}),
         project_slug: slug,
       });
       toast.success("Задача создана");
       mutateTasks();
-      mutate(`task-stats-${slug}`);
+      mutate(["task-stats", slug, swrIdentity] as const);
       setCreateTaskOpen(false);
       setTaskName("");
       setTaskDescription("");
@@ -215,31 +290,45 @@ export default function ProjectDetailPage({
       setTaskPriority("0");
       setTaskDeadline("");
     } catch (err) {
-      if (err instanceof ApiError) toast.error(err.detail);
+      toast.error(formatApiError(err));
     } finally {
       setCreateTaskLoading(false);
     }
   };
 
   const handleStatusChange = async (taskId: number, status: string) => {
+    const t = tasksList?.find((x) => x.id === taskId);
+    if (
+      !project ||
+      !t ||
+      !canChangeTaskStatus(project.user_role)
+    )
+      return;
     try {
       await tasks.changeStatus(slug, taskId, status);
       toast.success("Статус обновлен");
       mutateTasks();
-      mutate(`task-stats-${slug}`);
+      mutate(["task-stats", slug, swrIdentity] as const);
     } catch (err) {
-      if (err instanceof ApiError) toast.error(err.detail);
+      toast.error(formatApiError(err));
     }
   };
 
-  const handleDeleteTask = async (taskId: number) => {
+  const confirmDeleteTask = async () => {
+    if (!taskPendingDelete) return;
+    const deletedId = taskPendingDelete.id;
     try {
-      await tasks.delete(slug, taskId);
+      await tasks.delete(slug, deletedId);
       toast.success("Задача удалена");
       mutateTasks();
-      mutate(`task-stats-${slug}`);
+      mutate(["task-stats", slug, swrIdentity] as const);
+      setTaskPendingDelete(null);
+      if (selectedTask?.id === deletedId) {
+        setSelectedTask(null);
+        setTaskDetailOpen(false);
+      }
     } catch (err) {
-      if (err instanceof ApiError) toast.error(err.detail);
+      toast.error(formatApiError(err));
     }
   };
 
@@ -254,7 +343,7 @@ export default function ProjectDetailPage({
       await mutateProject();
       await mutateTeamMembersForProject();
     } catch (err) {
-      if (err instanceof ApiError) toast.error(err.detail);
+      toast.error(formatApiError(err));
     } finally {
       setAddingMemberUsername(null);
     }
@@ -266,7 +355,7 @@ export default function ProjectDetailPage({
       toast.success("Участник удален");
       mutateProject();
     } catch (err) {
-      if (err instanceof ApiError) toast.error(err.detail);
+      toast.error(formatApiError(err));
     }
   };
 
@@ -281,7 +370,7 @@ export default function ProjectDetailPage({
       }
       mutateProject();
     } catch (err) {
-      if (err instanceof ApiError) toast.error(err.detail);
+      toast.error(formatApiError(err));
     }
   };
 
@@ -293,9 +382,21 @@ export default function ProjectDetailPage({
       toast.success("Проект удален");
       router.push("/projects");
     } catch (err) {
-      if (err instanceof ApiError) toast.error(err.detail);
+      toast.error(formatApiError(err));
     }
   };
+
+  const filteredTasks = useMemo(() => {
+    if (!tasksList) return [];
+    const s = taskSearch.trim().toLowerCase();
+    if (!s) return tasksList;
+    return tasksList.filter(
+      (t) =>
+        t.name.toLowerCase().includes(s) ||
+        (t.assignee_username?.toLowerCase().includes(s) ?? false) ||
+        String(t.id).includes(s),
+    );
+  }, [tasksList, taskSearch]);
 
   if (isLoading) {
     return (
@@ -326,9 +427,13 @@ export default function ProjectDetailPage({
 
   const userCanAssignTasks = canAssignProjectTasks(project.user_role);
   const userCanEditTaskMeta = canEditTaskFieldsAdmin(project.user_role);
+  const userCanEditTaskDescription = canEditTaskDescription(
+    project.user_role,
+  );
 
   const roleIcon = (role: string) => {
-    switch (role) {
+    const r = normalizeProjectUserRole(role) ?? role;
+    switch (r) {
       case "owner":
         return <Crown className="h-3.5 w-3.5 text-warning" />;
       case "manager":
@@ -343,7 +448,8 @@ export default function ProjectDetailPage({
   };
 
   const roleLabel = (role: string) => {
-    switch (role) {
+    const r = normalizeProjectUserRole(role) ?? role;
+    switch (r) {
       case "owner":
         return "Владелец";
       case "manager":
@@ -566,14 +672,33 @@ export default function ProjectDetailPage({
 
         {/* Tasks Tab */}
         <TabsContent value="tasks" className="mt-4">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-foreground">
-              Задачи ({tasksList?.length ?? 0})
-            </h3>
-            {project.can_create_tasks && (
+          <div className="flex flex-col gap-3 mb-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="font-semibold text-foreground shrink-0">
+                Задачи{" "}
+                <span className="text-muted-foreground font-normal text-sm">
+                  {tasksList?.length ?? 0}
+                  {taskSearch.trim() &&
+                    filteredTasks.length !== (tasksList?.length ?? 0) &&
+                    ` · найдено ${filteredTasks.length}`}
+                </span>
+              </h3>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center w-full sm:w-auto sm:max-w-xl sm:justify-end">
+                <div className="relative w-full sm:w-64">
+                  <ListFilter className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  <Input
+                    className="pl-9 h-9"
+                    placeholder="Поиск: название, @исполнитель, №…"
+                    value={taskSearch}
+                    onChange={(e) => setTaskSearch(e.target.value)}
+                    aria-label="Поиск задач"
+                  />
+                </div>
+                {project.can_create_tasks &&
+                  canCreateTasksInProject(project.user_role) && (
               <Dialog open={createTaskOpen} onOpenChange={setCreateTaskOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" className="gap-1">
+                  <Button size="sm" className="gap-1 shrink-0 w-full sm:w-auto">
                     <Plus className="h-4 w-4" />
                     Новая задача
                   </Button>
@@ -582,9 +707,19 @@ export default function ProjectDetailPage({
                   <DialogHeader>
                     <DialogTitle>Создать задачу</DialogTitle>
                     <DialogDescription className="text-left">
-                      {userCanAssignTasks
-                        ? "Исполнитель выбирается из участников проекта."
-                        : "Назначить исполнителя могут только владелец и менеджер проекта."}
+                      {(() => {
+                        const hints = [
+                          !userCanEditTaskMeta &&
+                            "Приоритет и дедлайн настраивают владелец и менеджер.",
+                          !userCanAssignTasks &&
+                            "Исполнителя назначают владелец и менеджер.",
+                          !userCanEditTaskDescription &&
+                            "Описание при создании недоступно для вашей роли.",
+                        ].filter(Boolean) as string[];
+                        return hints.length > 0
+                          ? hints.join(" ")
+                          : "Исполнитель выбирается из участников проекта.";
+                      })()}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="flex flex-col gap-4">
@@ -603,6 +738,7 @@ export default function ProjectDetailPage({
                         onChange={(e) => setTaskDescription(e.target.value)}
                         placeholder="Описание задачи"
                         rows={3}
+                        disabled={!userCanEditTaskDescription}
                       />
                     </div>
                     <div
@@ -612,64 +748,69 @@ export default function ProjectDetailPage({
                           : "grid grid-cols-1 gap-3"
                       }
                     >
-                      {userCanAssignTasks && (
-                        <div className="flex flex-col gap-2">
-                          <Label>Исполнитель</Label>
-                          <Select
-                            value={taskAssignee || "none"}
-                            onValueChange={(v) =>
-                              setTaskAssignee(v === "none" ? "" : v)
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Не назначен" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Не назначен</SelectItem>
-                              {project.members
-                                .filter((m) => m.is_active)
-                                .map((m) => (
-                                  <SelectItem
-                                    key={m.username}
-                                    value={m.username}
-                                  >
-                                    {m.first_name} {m.last_name} (@
-                                    {m.username})
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                      {userCanEditTaskMeta && (
-                        <div className="flex flex-col gap-2">
-                          <Label>Приоритет</Label>
-                          <Select
-                            value={taskPriority}
-                            onValueChange={setTaskPriority}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="0">Низкий</SelectItem>
-                              <SelectItem value="1">Средний</SelectItem>
-                              <SelectItem value="2">Высокий</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                    </div>
-                    {userCanEditTaskMeta && (
                       <div className="flex flex-col gap-2">
-                        <Label>Дедлайн</Label>
-                        <Input
-                          type="datetime-local"
-                          value={taskDeadline}
-                          onChange={(e) => setTaskDeadline(e.target.value)}
-                        />
+                        <Label>Исполнитель</Label>
+                        <Select
+                          value={taskAssignee || "none"}
+                          onValueChange={(v) =>
+                            setTaskAssignee(v === "none" ? "" : v)
+                          }
+                          disabled={!userCanAssignTasks}
+                        >
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={
+                                userCanAssignTasks
+                                  ? "Не назначен"
+                                  : "Недоступно для вашей роли"
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Не назначен</SelectItem>
+                            {project.members
+                              .filter((m) => m.is_active)
+                              .map((m) => (
+                                <SelectItem
+                                  key={m.username}
+                                  value={m.username}
+                                >
+                                  {m.first_name} {m.last_name} (@
+                                  {m.username})
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                    )}
+                      <div className="flex flex-col gap-2">
+                        <Label>Приоритет</Label>
+                        <Select
+                          value={
+                            userCanEditTaskMeta ? taskPriority : "1"
+                          }
+                          onValueChange={setTaskPriority}
+                          disabled={!userCanEditTaskMeta}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">Низкий</SelectItem>
+                            <SelectItem value="1">Средний</SelectItem>
+                            <SelectItem value="2">Высокий</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label>Дедлайн</Label>
+                      <Input
+                        type="datetime-local"
+                        value={taskDeadline}
+                        onChange={(e) => setTaskDeadline(e.target.value)}
+                        disabled={!userCanEditTaskMeta}
+                      />
+                    </div>
                   </div>
                   <DialogFooter>
                     <Button
@@ -690,7 +831,9 @@ export default function ProjectDetailPage({
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-            )}
+                )}
+              </div>
+            </div>
           </div>
 
           {tasksLoading ? (
@@ -707,17 +850,41 @@ export default function ProjectDetailPage({
             <Card>
               <CardContent className="py-12 text-center">
                 <ListTodo className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Нет задач</p>
+                <p className="text-sm text-muted-foreground pb-4">Нет задач</p>
+                {project.can_create_tasks &&
+                  canCreateTasksInProject(project.user_role) && (
+                  <Button size="sm" className="gap-1" onClick={() => setCreateTaskOpen(true)}>
+                    <Plus className="h-4 w-4" />
+                    Создать первую задачу
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : filteredTasks.length === 0 ? (
+            <Card>
+              <CardContent className="py-10 text-center">
+                <ListFilter className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">Нет задач по запросу</p>
+                <Button variant="link" className="mt-1" onClick={() => setTaskSearch("")}>
+                  Сбросить поиск
+                </Button>
               </CardContent>
             </Card>
           ) : (
             <div className="flex flex-col gap-2">
-              {tasksList?.map((task: Task) => (
+              {filteredTasks.map((task: Task) => (
                 <Card
                   key={task.id}
                   role="button"
                   tabIndex={0}
-                  className="hover:border-primary/40 transition-colors cursor-pointer"
+                  className={cn(
+                    "hover:border-primary/40 transition-colors cursor-pointer",
+                    isTaskOverdue(task) &&
+                      "border-destructive/35 bg-destructive/[0.04]",
+                    task.status === "todo" &&
+                      task.is_ready &&
+                      "border-success/25 bg-success/[0.03]",
+                  )}
                   onClick={() => {
                     setSelectedTask(task);
                     setTaskDetailOpen(true);
@@ -757,6 +924,23 @@ export default function ProjectDetailPage({
                           >
                             {priorityLabel(task.priority)}
                           </Badge>
+                          {isTaskOverdue(task) && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-destructive">
+                              <AlertTriangle className="h-3 w-3" />
+                              Просрочено
+                            </span>
+                          )}
+                          {task.status === "todo" && task.is_ready && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-success">
+                              <PlayCircle className="h-3 w-3" />
+                              Можно начать
+                            </span>
+                          )}
+                          {task.status === "todo" && !task.is_ready && (
+                            <span className="text-[10px] text-muted-foreground">
+                              Ждёт зависимостей
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -765,11 +949,24 @@ export default function ProjectDetailPage({
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => e.stopPropagation()}
                     >
-                      {canChangeTaskStatus(project.user_role) && (
+                      {canChangeTaskStatus(project.user_role) ? (
                         <Select
                           value={task.status}
                           onValueChange={(s) => handleStatusChange(task.id, s)}
                         >
+                          <SelectTrigger className="w-32 h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="todo">К выполнению</SelectItem>
+                            <SelectItem value="in_progress">В работе</SelectItem>
+                            <SelectItem value="review">На проверке</SelectItem>
+                            <SelectItem value="completed">Выполнена</SelectItem>
+                            <SelectItem value="blocked">Заблокирована</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Select value={task.status} disabled>
                           <SelectTrigger className="w-32 h-8 text-xs">
                             <SelectValue />
                           </SelectTrigger>
@@ -791,7 +988,7 @@ export default function ProjectDetailPage({
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={() => handleDeleteTask(task.id)}
+                          onClick={() => setTaskPendingDelete(task)}
                           aria-label="Удалить задачу"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -976,13 +1173,17 @@ export default function ProjectDetailPage({
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {project.can_manage_members &&
-                      member.role !== "owner" &&
-                      member.username !== user?.username ? (
-                        <>
+                      {(() => {
+                        const roleSelectLocked =
+                          !project.can_manage_members ||
+                          member.role === "owner" ||
+                          member.username === user?.username;
+                        return (
                           <Select
                             value={member.role}
+                            disabled={roleSelectLocked}
                             onValueChange={(role) => {
+                              if (roleSelectLocked) return;
                               projects
                                 .updateMember(slug, member.username, role)
                                 .then(() => {
@@ -990,8 +1191,7 @@ export default function ProjectDetailPage({
                                   mutateProject();
                                 })
                                 .catch((err: unknown) => {
-                                  if (err instanceof ApiError)
-                                    toast.error(err.detail);
+                                  toast.error(formatApiError(err));
                                 });
                             }}
                           >
@@ -1008,21 +1208,20 @@ export default function ProjectDetailPage({
                               </SelectItem>
                             </SelectContent>
                           </Select>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={() => handleRemoveMember(member.username)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </>
-                      ) : (
-                        <Badge variant="outline" className="gap-1">
-                          {roleIcon(member.role)}
-                          {roleLabel(member.role)}
-                        </Badge>
-                      )}
+                        );
+                      })()}
+                      {project.can_manage_members &&
+                      member.role !== "owner" &&
+                      member.username !== user?.username ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => handleRemoveMember(member.username)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : null}
                     </div>
                   </CardContent>
                 </Card>
@@ -1042,10 +1241,44 @@ export default function ProjectDetailPage({
           }}
           onUpdate={() => {
             mutateTasks();
-            mutate(`task-stats-${slug}`);
+            mutate(["task-stats", slug, swrIdentity] as const);
+          }}
+          onOpenRelatedTask={(taskId) => {
+            const fromList = tasksList?.find((t) => t.id === taskId);
+            if (fromList) {
+              setSelectedTask(fromList);
+              return;
+            }
+            void tasks
+              .get(slug, taskId)
+              .then((d) => setSelectedTask(d))
+              .catch(() => toast.error("Не удалось загрузить задачу"));
           }}
         />
       )}
+
+      <AlertDialog
+        open={taskPendingDelete != null}
+        onOpenChange={(open) => !open && setTaskPendingDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить задачу?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Задача «{taskPendingDelete?.name}» будет удалена безвозвратно.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => void confirmDeleteTask()}
+            >
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

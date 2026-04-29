@@ -19,9 +19,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { tasks as tasksApi, projects as projectsApi, ApiError } from "@/lib/api";
+import { tasks as tasksApi, projects as projectsApi, formatApiError } from "@/lib/api";
 import type { ProjectMember } from "@/lib/api";
-import { canAssignProjectTasks } from "@/lib/project-permissions";
+import {
+  canAssignProjectTasks,
+  canCreateTasksInProject,
+  canEditTaskFieldsAdmin,
+  canEditTaskDescription,
+} from "@/lib/project-permissions";
 import { toast } from "sonner";
 
 interface Props {
@@ -44,7 +49,10 @@ export function CreateTaskDialog({
   const [priority, setPriority] = useState("1");
   const [assigneeUsername, setAssigneeUsername] = useState("");
   const [members, setMembers] = useState<ProjectMember[]>([]);
+  const [canCreateTask, setCanCreateTask] = useState(false);
   const [canAssign, setCanAssign] = useState(false);
+  const [canEditMeta, setCanEditMeta] = useState(false);
+  const [canEditDesc, setCanEditDesc] = useState(false);
   const [membersLoading, setMembersLoading] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -54,13 +62,19 @@ export function CreateTaskDialog({
     projectsApi
       .get(projectSlug)
       .then((p) => {
+        setCanCreateTask(canCreateTasksInProject(p.user_role));
         setMembers(p.members.filter((m) => m.is_active));
         setCanAssign(canAssignProjectTasks(p.user_role));
+        setCanEditMeta(canEditTaskFieldsAdmin(p.user_role));
+        setCanEditDesc(canEditTaskDescription(p.user_role));
       })
       .catch(() => {
         toast.error("Не удалось загрузить проект");
+        setCanCreateTask(false);
         setMembers([]);
         setCanAssign(false);
+        setCanEditMeta(false);
+        setCanEditDesc(false);
       })
       .finally(() => setMembersLoading(false));
   }, [open, projectSlug]);
@@ -74,12 +88,18 @@ export function CreateTaskDialog({
 
   async function handleCreate() {
     if (!name.trim()) return toast.error("Введите название");
+    if (!canCreateTask) {
+      toast.error("Создавать задачи могут только владелец и менеджер проекта.");
+      return;
+    }
     setLoading(true);
     try {
       await tasksApi.create(projectSlug, {
         name: name.trim(),
-        description: description.trim() || undefined,
-        priority: Number(priority),
+        ...(canEditDesc && description.trim()
+          ? { description: description.trim() }
+          : {}),
+        ...(canEditMeta ? { priority: Number(priority) } : {}),
         project_slug: projectSlug,
         ...(canAssign && assigneeUsername
           ? { assignee_username: assigneeUsername }
@@ -89,9 +109,7 @@ export function CreateTaskDialog({
       resetForm();
       onCreate();
     } catch (err) {
-      const msg =
-        err instanceof ApiError ? err.detail : "Ошибка создания задачи";
-      toast.error(msg);
+      toast.error(formatApiError(err));
     } finally {
       setLoading(false);
     }
@@ -111,9 +129,18 @@ export function CreateTaskDialog({
         <DialogHeader>
           <DialogTitle>Новая задача</DialogTitle>
           <DialogDescription>
-            {canAssign
-              ? "Исполнитель — из числа участников проекта."
-              : "Назначение исполнителя доступно владельцу и менеджеру проекта."}
+            {(() => {
+              const hints = [
+                !canEditMeta &&
+                  "Приоритет по умолчанию средний; менять могут владелец и менеджер.",
+                !canAssign && "Исполнителя назначают владелец и менеджер.",
+                !canEditDesc &&
+                  "Описание при создании для вашей роли недоступно.",
+              ].filter(Boolean) as string[];
+              return hints.length > 0
+                ? hints.join(" ")
+                : "Исполнитель выбирается из участников проекта.";
+            })()}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -134,41 +161,46 @@ export function CreateTaskDialog({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Описание..."
               rows={3}
+              disabled={!canEditDesc}
             />
           </div>
-          {canAssign && (
-            <div>
-              <Label>Исполнитель</Label>
-              <Select
-                value={assigneeUsername || NONE}
-                onValueChange={(v) =>
-                  setAssigneeUsername(v === NONE ? "" : v)
-                }
-                disabled={membersLoading}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      membersLoading
-                        ? "Загрузка участников…"
+          <div>
+            <Label>Исполнитель</Label>
+            <Select
+              value={assigneeUsername || NONE}
+              onValueChange={(v) =>
+                setAssigneeUsername(v === NONE ? "" : v)
+              }
+              disabled={membersLoading || !canAssign}
+            >
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={
+                    membersLoading
+                      ? "Загрузка участников…"
+                      : !canAssign
+                        ? "Недоступно для вашей роли"
                         : "Не назначен"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>Не назначен</SelectItem>
-                  {members.map((m) => (
-                    <SelectItem key={m.id} value={m.username}>
-                      {m.first_name} {m.last_name} (@{m.username})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>Не назначен</SelectItem>
+                {members.map((m) => (
+                  <SelectItem key={m.id} value={m.username}>
+                    {m.first_name} {m.last_name} (@{m.username})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div>
             <Label>Приоритет</Label>
-            <Select value={priority} onValueChange={setPriority}>
+            <Select
+              value={canEditMeta ? priority : "1"}
+              onValueChange={setPriority}
+              disabled={!canEditMeta}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -179,7 +211,11 @@ export function CreateTaskDialog({
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={handleCreate} disabled={loading} className="w-full">
+          <Button
+            onClick={handleCreate}
+            disabled={loading || !canCreateTask}
+            className="w-full"
+          >
             {loading ? "Создание..." : "Создать задачу"}
           </Button>
         </div>

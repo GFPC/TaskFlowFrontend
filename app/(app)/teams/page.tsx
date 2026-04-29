@@ -3,11 +3,11 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { teams } from "@/lib/api";
+import { ruProjectsCount } from "@/lib/ru-plurals";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, FolderKanban, Plus, Crown, Shield, User } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Users, FolderKanban, Plus } from "lucide-react";
 
 export default function TeamsPage() {
   const { data: teamsList, isLoading } = useSWR(
@@ -17,13 +17,20 @@ export default function TeamsPage() {
   );
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Команды</h1>
-          <p className="text-muted-foreground mt-1">Управляйте своими командами</p>
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-4 border-b border-border/50 pb-8 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-1">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Организация
+          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            Команды
+          </h1>
+          <p className="max-w-lg text-sm text-muted-foreground">
+            Рабочие группы, участники и проекты — точка входа в совместную работу
+          </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild>
             <Link href="/teams/join">Вступить по коду</Link>
           </Button>
@@ -70,7 +77,7 @@ export default function TeamsPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {teamsList?.map((team) => (
             <Link key={team.id} href={`/teams/${team.slug}`}>
-              <Card className="hover:border-primary/30 transition-colors cursor-pointer h-full">
+              <Card className="h-full cursor-pointer border-border/60 shadow-sm transition-all hover:border-primary/35 hover:shadow-md">
                 <CardHeader>
                   <CardTitle className="text-base">{team.name}</CardTitle>
                   <CardDescription className="line-clamp-2">
@@ -84,7 +91,7 @@ export default function TeamsPage() {
                   </span>
                   <span className="flex items-center gap-1">
                     <FolderKanban className="h-3.5 w-3.5" />
-                    {team.projects_count} проектов
+                    {ruProjectsCount(team.projects_count ?? 0)}
                   </span>
                 </CardContent>
               </Card>

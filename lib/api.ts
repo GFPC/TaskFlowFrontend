@@ -80,12 +80,72 @@ function shouldRefresh(): boolean {
 export class ApiError extends Error {
   status: number;
   detail: string;
+  /** Стабильный код ошибки с бэкенда (например DEPENDENCY_CYCLE). */
+  errorCode?: string;
 
-  constructor(status: number, detail: string) {
+  constructor(status: number, detail: string, errorCode?: string) {
     super(detail);
     this.status = status;
     this.detail = detail;
+    this.errorCode = errorCode;
   }
+}
+
+function parseErrorBody(body: unknown): { detail: string; errorCode?: string } {
+  if (!body || typeof body !== "object") {
+    return { detail: "Unknown error" };
+  }
+  const b = body as Record<string, unknown>;
+  let errorCode =
+    typeof b.error_code === "string" ? b.error_code : undefined;
+  const d = b.detail;
+  if (typeof d === "string") {
+    return { detail: d, errorCode };
+  }
+  if (Array.isArray(d)) {
+    const parts = d.map((item) => {
+      if (item && typeof item === "object" && "msg" in item) {
+        return String((item as { msg?: string }).msg);
+      }
+      return JSON.stringify(item);
+    });
+    return { detail: parts.join("; ") || "Ошибка валидации", errorCode };
+  }
+  if (d && typeof d === "object") {
+    const o = d as Record<string, unknown>;
+    const msg =
+      (typeof o.message === "string" && o.message) ||
+      (typeof o.msg === "string" && o.msg) ||
+      (typeof o.detail === "string" && o.detail) ||
+      JSON.stringify(o);
+    if (typeof o.error_code === "string") errorCode = o.error_code;
+    return { detail: msg, errorCode };
+  }
+  if (typeof b.message === "string") {
+    return { detail: b.message, errorCode };
+  }
+  return { detail: JSON.stringify(body), errorCode };
+}
+
+/** Подписи для известных error_code; иначе показываем detail с сервера. */
+export const KNOWN_API_ERROR_MESSAGES: Record<string, string> = {
+  DEPENDENCY_CYCLE: "Нельзя создать цикл в зависимостях.",
+  TASK_NOT_READY: "Задача ещё не готова к работе: сначала завершите блокирующие задачи.",
+  UNKNOWN_ACTION_TYPE: "Неизвестный тип действия на зависимости.",
+  STATUS_BLOCKED_BY_DEPENDENCIES:
+    "Нельзя взять задачу в работу, пока не выполнены блокирующие зависимости.",
+};
+
+export function formatApiError(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.errorCode) {
+      const mapped = KNOWN_API_ERROR_MESSAGES[err.errorCode];
+      if (mapped) return mapped;
+    }
+    return err.detail;
+  }
+  if (err instanceof Error) return err.message;
+  return "Неизвестная ошибка";
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -136,13 +196,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (!res.ok) {
     let detail = "Unknown error";
+    let errorCode: string | undefined;
     try {
       const body = await res.json();
-      detail = body.detail || body.message || JSON.stringify(body);
+      const parsed = parseErrorBody(body);
+      detail = parsed.detail;
+      errorCode = parsed.errorCode;
     } catch {
       detail = res.statusText;
     }
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, detail, errorCode);
   }
 
   // Handle empty responses (204, etc.)
@@ -594,6 +657,16 @@ export const tasks = {
       { method: "DELETE" },
     ),
 
+  updateDependency: (
+    projectSlug: string,
+    dependencyId: number,
+    data: Partial<{ dependency_type: string; description: string }>,
+  ) =>
+    request<Dependency>(
+      `/projects/${projectSlug}/tasks/dependencies/${dependencyId}`,
+      { method: "PATCH", body: JSON.stringify(data) },
+    ),
+
   addAction: (
     projectSlug: string,
     dependencyId: number,
@@ -622,6 +695,25 @@ export const tasks = {
 
   userStats: (projectSlug: string, username: string) =>
     request(`/projects/${projectSlug}/tasks/stats/user/${username}`),
+};
+
+// ---- META (справочники) ----
+export interface TaskGraphMeta {
+  dependency_types?: Array<{
+    code: string;
+    display_name?: string;
+    label?: string;
+    blocks_work?: boolean;
+  }>;
+  action_types?: Array<{
+    code: string;
+    display_name?: string;
+    label?: string;
+  }>;
+}
+
+export const meta = {
+  taskGraph: () => request<TaskGraphMeta>("/meta/task-graph"),
 };
 
 // ---- HELPER ----
@@ -830,6 +922,10 @@ export interface Task {
   position_x: number;
   position_y: number;
   is_ready: boolean;
+  /** Задачи-блокировщики (незакрытые предковые зависимости), если отдаёт API. */
+  blocking_task_ids?: number[];
+  /** Человекочитаемая причина «не готова к работе». */
+  blocked_reason?: string | null;
   metadata?: Record<string, unknown>;
 }
 
@@ -891,6 +987,8 @@ export interface GraphNode {
     priority: number;
     deadline?: string;
     is_ready: boolean;
+    blocking_task_ids?: number[];
+    blocked_reason?: string | null;
   };
   position: { x: number; y: number };
 }
@@ -903,7 +1001,7 @@ export interface GraphEdge {
   data?: {
     dependency_id?: number;
     description?: string;
-    actions?: { type: string; delay?: number }[];
+    actions?: DependencyAction[];
   };
   animated?: boolean;
   label?: string;

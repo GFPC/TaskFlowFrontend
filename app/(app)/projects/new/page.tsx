@@ -52,6 +52,8 @@ function NewProjectForm() {
       });
       mutate("projects");
       mutate(`team-projects-${teamSlug}`);
+      mutate(`team-${teamSlug}`);
+      mutate("teams");
       toast.success("Проект создан!");
       router.push(`/projects/${project.slug}`);
     } catch (err) {

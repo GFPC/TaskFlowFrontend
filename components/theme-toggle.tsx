@@ -23,8 +23,13 @@ export function ThemeToggle() {
 
   if (!mounted) {
     return (
-      <Button variant="ghost" size="icon" disabled>
-        <Sun className="h-4 w-4" />
+      <Button
+        variant="ghost"
+        disabled
+        className="w-full justify-start gap-3 px-3 py-2.5 h-auto text-muted-foreground"
+      >
+        <Sun className="h-4 w-4 shrink-0" />
+        <span className="text-sm">Тема</span>
       </Button>
     );
   }
@@ -59,16 +64,15 @@ export function ThemeToggle() {
   return (
     <Button
       variant="ghost"
-      size="icon"
-      className="w-full justify-start gap-3"
+      className="w-full justify-start gap-3 px-3 py-2.5 h-auto font-medium text-muted-foreground hover:text-foreground"
       onClick={cycleTheme}
     >
       {theme === "dark" ? (
-        <Sun className="h-4 w-4" />
+        <Sun className="h-4 w-4 shrink-0" />
       ) : theme === "light" ? (
-        <Moon className="h-4 w-4" />
+        <Moon className="h-4 w-4 shrink-0" />
       ) : (
-        <Sun className="h-4 w-4" />
+        <Sun className="h-4 w-4 shrink-0" />
       )}
       <span className="text-sm">
         {theme === "dark"

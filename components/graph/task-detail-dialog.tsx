@@ -37,7 +37,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   tasks as tasksApi,
   projects as projectsApi,
-  ApiError,
+  formatApiError,
   type Task,
   type TaskDetail,
 } from "@/lib/api";
@@ -47,12 +47,21 @@ import {
   canEditTaskFieldsAdmin,
   canEditTaskDescription,
   canChangeTaskStatus,
-  isProjectObserver,
+  isProjectStatusOnlyRole,
   canDeleteTask,
 } from "@/lib/project-permissions";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
-import { Trash2, Save, Play, CheckCircle2, Loader2 } from "lucide-react";
+import {
+  Trash2,
+  Save,
+  Play,
+  CheckCircle2,
+  Loader2,
+  Lock,
+  ArrowRight,
+} from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const statusLabels: Record<string, string> = {
   todo: "К выполнению",
@@ -70,12 +79,20 @@ const priorityLabels: Record<number, string> = {
 
 const ASSIGNEE_NONE = "__none__";
 
+const DEPENDENCY_TYPE_LABELS: Record<string, string> = {
+  blocks: "Блокирует",
+  simple: "Связь",
+  dependency: "Зависимость",
+};
+
 interface Props {
   task: any;
   projectSlug: string;
   open: boolean;
   onClose: () => void;
   onUpdate: () => void;
+  /** Карточка связанной задачи (граф / список проекта). */
+  onOpenRelatedTask?: (taskId: number) => void;
 }
 
 function getAssigneeKey(t: { assignee_username?: string; assignee?: string }): string {
@@ -96,6 +113,7 @@ export function TaskDetailDialog({
   open,
   onClose,
   onUpdate,
+  onOpenRelatedTask,
 }: Props) {
   const { user } = useAuth();
 
@@ -156,7 +174,9 @@ export function TaskDetailDialog({
   const canAdminFields = canEditTaskFieldsAdmin(projectRole);
   const canDesc = canEditTaskDescription(projectRole);
   const canStatus = canChangeTaskStatus(projectRole);
-  const observer = isProjectObserver(projectRole);
+  const statusOnlyRole = isProjectStatusOnlyRole(projectRole);
+  const canMutateSomething =
+    canAdminFields || canAssign || canDesc || canStatus;
 
   const creatorUsername =
     (base as Task).creator_username ?? (base as { creator?: string }).creator;
@@ -168,7 +188,7 @@ export function TaskDetailDialog({
   );
 
   async function handleSave(statusOverride?: string) {
-    if (observer) {
+    if (!canMutateSomething) {
       onClose();
       return;
     }
@@ -205,16 +225,14 @@ export function TaskDetailDialog({
       if (Object.keys(payload).length > 0) {
         await tasksApi.update(projectSlug, task.id, payload);
       }
-      if (canStatus && statusToUse !== orig.status) {
+      if (canChangeTaskStatus(projectRole) && statusToUse !== orig.status) {
         await tasksApi.changeStatus(projectSlug, task.id, statusToUse);
       }
       toast.success("Задача обновлена");
       onUpdate();
       onClose();
     } catch (err: unknown) {
-      const msg =
-        err instanceof ApiError ? err.detail : "Ошибка обновления";
-      toast.error(msg);
+      toast.error(formatApiError(err));
     } finally {
       setLoading(false);
     }
@@ -233,7 +251,16 @@ export function TaskDetailDialog({
     }
   }
 
-  const assigneeReadonly = getAssigneeKey(base as Task) || "—";
+  const taskBase = base as Task;
+  const taskDetail = resolved as TaskDetail | null;
+  const incomingDeps = taskDetail?.incoming_dependencies ?? [];
+  const outgoingDeps = taskDetail?.outgoing_dependencies ?? [];
+  const showBlockInfo =
+    (taskBase.status === "todo" && !taskBase.is_ready) ||
+    Boolean(taskBase.blocked_reason?.trim()) ||
+    (taskBase.blocking_task_ids && taskBase.blocking_task_ids.length > 0);
+  const hasDependencyLists =
+    incomingDeps.length > 0 || outgoingDeps.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -245,8 +272,11 @@ export function TaskDetailDialog({
               {priorityLabels[(base as Task).priority ?? 0] ?? "Средний"}
             </Badge>
           </DialogTitle>
-          {observer && (
-            <DialogDescription>Только просмотр</DialogDescription>
+          {statusOnlyRole && !loadingDetail && (
+            <DialogDescription>
+              Поля задачи редактируют владелец и менеджер. Вы можете менять
+              статус (в т. ч. кнопками ниже).
+            </DialogDescription>
           )}
         </DialogHeader>
 
@@ -260,15 +290,12 @@ export function TaskDetailDialog({
         <div className="space-y-4">
           <div>
             <Label>Название</Label>
-            {canAdminFields ? (
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            ) : (
-              <p className="text-sm font-medium pt-2">{name}</p>
-            )}
-            {!canAdminFields && !observer && (
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={!canAdminFields}
+            />
+            {!canAdminFields && (
               <p className="text-xs text-muted-foreground mt-1">
                 Название меняют владелец и менеджер.
               </p>
@@ -277,20 +304,16 @@ export function TaskDetailDialog({
 
           <div>
             <Label>Описание</Label>
-            {canDesc ? (
-              <Textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={4}
-                placeholder="Описание задачи"
-              />
-            ) : (
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap pt-2">
-                {(base as Task).description?.trim() ? (
-                  (base as Task).description
-                ) : (
-                  <span className="italic">Нет описания</span>
-                )}
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={4}
+              placeholder="Описание задачи"
+              disabled={!canDesc}
+            />
+            {!canDesc && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Редактирование описания недоступно для вашей роли.
               </p>
             )}
           </div>
@@ -298,109 +321,229 @@ export function TaskDetailDialog({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Статус</Label>
-              {canStatus ? (
-                <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(statusLabels).map(([k, v]) => (
-                      <SelectItem key={k} value={k}>
-                        {v}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <p className="text-sm pt-2">
-                  {statusLabels[status] ?? status}
+              <Select
+                value={status}
+                onValueChange={setStatus}
+                disabled={!canStatus}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(statusLabels).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>
+                      {v}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!canStatus && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Смена статуса недоступна для вашей роли.
                 </p>
               )}
             </div>
             <div>
               <Label>Приоритет</Label>
-              {canAdminFields ? (
-                <Select value={priority} onValueChange={setPriority}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(priorityLabels).map(([k, v]) => (
-                      <SelectItem key={k} value={String(k)}>
-                        {v}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <p className="text-sm pt-2">
-                  {priorityLabels[Number(priority)] ?? priority}
+              <Select
+                value={priority}
+                onValueChange={setPriority}
+                disabled={!canAdminFields}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(priorityLabels).map(([k, v]) => (
+                    <SelectItem key={k} value={String(k)}>
+                      {v}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!canAdminFields && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Приоритет задают владелец и менеджер.
                 </p>
               )}
             </div>
           </div>
 
-          {canAdminFields && (
-            <div>
-              <Label>Дедлайн</Label>
-              <Input
-                type="datetime-local"
-                value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
-              />
-            </div>
-          )}
-
-          {!canAdminFields && (base as Task).deadline && (
-            <div>
-              <Label>Дедлайн</Label>
-              <p className="text-sm text-muted-foreground pt-1">
-                {new Date((base as Task).deadline!).toLocaleString("ru")}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Менять дедлайн могут владелец и менеджер.
-              </p>
-            </div>
-          )}
-
           <div>
-            <Label>Исполнитель</Label>
-            {canAssign ? (
-              <Select
-                value={assigneeUsername ? assigneeUsername : ASSIGNEE_NONE}
-                onValueChange={(v) =>
-                  setAssigneeUsername(v === ASSIGNEE_NONE ? "" : v)
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Не назначен" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ASSIGNEE_NONE}>Не назначен</SelectItem>
-                  {members.map((m) => (
-                    <SelectItem key={m.id} value={m.username}>
-                      {m.first_name} {m.last_name} (@{m.username})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <>
-                <p className="text-sm text-muted-foreground pt-2">
-                  {assigneeReadonly}
-                </p>
-                {!observer && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Назначает владелец или менеджер.
-                  </p>
-                )}
-              </>
+            <Label>Дедлайн</Label>
+            <Input
+              type="datetime-local"
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
+              disabled={!canAdminFields}
+            />
+            {!canAdminFields && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {(base as Task).deadline
+                  ? "Менять дедлайн могут владелец и менеджер."
+                  : "Дедлайн задают владелец и менеджер."}
+              </p>
             )}
           </div>
 
+          <div>
+            <Label>Исполнитель</Label>
+            <Select
+              value={assigneeUsername ? assigneeUsername : ASSIGNEE_NONE}
+              onValueChange={(v) =>
+                setAssigneeUsername(v === ASSIGNEE_NONE ? "" : v)
+              }
+              disabled={!canAssign}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Не назначен" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ASSIGNEE_NONE}>Не назначен</SelectItem>
+                {members.map((m) => (
+                  <SelectItem key={m.id} value={m.username}>
+                    {m.first_name} {m.last_name} (@{m.username})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!canAssign && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Назначает владелец или менеджер.
+              </p>
+            )}
+          </div>
+
+          {(showBlockInfo || hasDependencyLists) && (
+            <div className="space-y-3">
+              {showBlockInfo && (
+                <Alert
+                  variant={
+                    taskBase.status === "todo" && !taskBase.is_ready
+                      ? "destructive"
+                      : "default"
+                  }
+                  className="py-3"
+                >
+                  <Lock className="h-4 w-4" />
+                  <AlertTitle className="text-sm">
+                    {taskBase.status === "todo" && !taskBase.is_ready
+                      ? "Задача ждёт зависимостей"
+                      : "Состояние по зависимостям"}
+                  </AlertTitle>
+                  <AlertDescription className="text-xs space-y-1.5">
+                    {taskBase.blocked_reason?.trim() ? (
+                      <p className="text-foreground/90">
+                        {taskBase.blocked_reason}
+                      </p>
+                    ) : taskBase.status === "todo" && !taskBase.is_ready ? (
+                      <p>
+                        Завершите или снимите блокировки с задач-предшественников.
+                      </p>
+                    ) : null}
+                    {taskBase.blocking_task_ids &&
+                      taskBase.blocking_task_ids.length > 0 && (
+                        <p className="font-mono text-[11px] text-muted-foreground">
+                          Блокируют: №{taskBase.blocking_task_ids.join(", №")}
+                        </p>
+                      )}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {hasDependencyLists && (
+                <div className="rounded-lg border border-border/70 bg-muted/30 p-3 space-y-3">
+                  <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <ArrowRight className="h-3.5 w-3.5 rotate-180 text-muted-foreground" />
+                    Блокируют эту задачу
+                  </p>
+                  {incomingDeps.length > 0 ? (
+                    <ul className="space-y-2 text-xs">
+                      {incomingDeps.map((d) => (
+                        <li
+                          key={d.id}
+                          className="flex flex-wrap items-center gap-2 justify-between gap-y-1"
+                        >
+                          <span className="text-muted-foreground min-w-0">
+                            <span className="font-medium text-foreground">
+                              {d.source_task_name}
+                            </span>
+                            <Badge variant="outline" className="ml-2 text-[10px]">
+                              {DEPENDENCY_TYPE_LABELS[d.dependency_type] ??
+                                d.dependency_type}
+                            </Badge>
+                            {d.actions?.length ? (
+                              <span className="ml-1 text-[10px] text-muted-foreground">
+                                · {d.actions.length}{" "}
+                                {d.actions.length === 1
+                                  ? "действие"
+                                  : "действий"}
+                              </span>
+                            ) : null}
+                          </span>
+                          {onOpenRelatedTask ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-[10px] shrink-0"
+                              onClick={() => onOpenRelatedTask(d.source_task_id)}
+                            >
+                              №{d.source_task_id}
+                            </Button>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">—</p>
+                  )}
+
+                  <p className="text-xs font-semibold text-foreground flex items-center gap-1.5 pt-1 border-t border-border/60">
+                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                    Эта задача блокирует
+                  </p>
+                  {outgoingDeps.length > 0 ? (
+                    <ul className="space-y-2 text-xs">
+                      {outgoingDeps.map((d) => (
+                        <li
+                          key={d.id}
+                          className="flex flex-wrap items-center gap-2 justify-between gap-y-1"
+                        >
+                          <span className="text-muted-foreground min-w-0">
+                            <span className="font-medium text-foreground">
+                              {d.target_task_name}
+                            </span>
+                            <Badge variant="outline" className="ml-2 text-[10px]">
+                              {DEPENDENCY_TYPE_LABELS[d.dependency_type] ??
+                                d.dependency_type}
+                            </Badge>
+                          </span>
+                          {onOpenRelatedTask ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-[10px] shrink-0"
+                              onClick={() => onOpenRelatedTask(d.target_task_id)}
+                            >
+                              №{d.target_task_id}
+                            </Button>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">—</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <Separator />
 
-          {!observer && canStatus && (
+          {canStatus && (
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
                 {base.status === "todo" && (base as Task).is_ready && (
@@ -410,6 +553,16 @@ export function TaskDetailDialog({
                     onClick={() => void handleSave("in_progress")}
                   >
                     <Play className="h-4 w-4 mr-2" /> Начать работу
+                  </Button>
+                )}
+                {base.status === "todo" && !(base as Task).is_ready && (
+                  <Button
+                    type="button"
+                    className="flex-1"
+                    variant="secondary"
+                    disabled
+                  >
+                    <Play className="h-4 w-4 mr-2" /> Ожидает зависимостей
                   </Button>
                 )}
                 {base.status !== "completed" && (
@@ -428,7 +581,7 @@ export function TaskDetailDialog({
 
           <Separator />
 
-          {observer ? (
+          {!canMutateSomething ? (
             <DialogFooter>
               <Button type="button" variant="secondary" onClick={onClose}>
                 Закрыть

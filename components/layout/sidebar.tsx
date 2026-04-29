@@ -13,18 +13,14 @@ import {
   LogOut,
   Menu,
   X,
-  Moon,
-  Sun,
 } from "lucide-react";
 
 import { useAuth } from "@/lib/auth-context";
 
-import { useTheme } from "next-themes";
-
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const navigation = [
   { name: "Дашборд", href: "/dashboard", icon: LayoutDashboard },
@@ -39,6 +35,10 @@ export function Sidebar() {
   const { logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
 
+  useEffect(() => {
+    setIsOpen(false);
+  }, [pathname]);
+
   return (
     <>
       <Button
@@ -52,16 +52,23 @@ export function Sidebar() {
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 bg-card border-r transition-transform lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 w-64 border-r border-border/60 bg-card/90 shadow-sm backdrop-blur-xl transition-transform dark:bg-card/80 lg:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
         <div className="flex flex-col h-full px-4 py-6">
-          <div className="flex items-center gap-2 px-2 mb-8">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold">
+          <div className="flex items-center gap-2.5 px-2 mb-8">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary font-bold text-sm text-primary-foreground shadow-md ring-2 ring-primary/25">
               TF
             </div>
-            <span className="text-xl font-bold tracking-tight">TaskFlow</span>
+            <div className="leading-tight">
+              <span className="block text-lg font-bold tracking-tight">
+                TaskFlow
+              </span>
+              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                Задачи и команды
+              </span>
+            </div>
           </div>
 
           <nav className="flex-1 space-y-1">
@@ -73,10 +80,10 @@ export function Sidebar() {
                   key={item.name}
                   href={item.href}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                     isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                      ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                      : "text-muted-foreground hover:bg-accent/80 hover:text-accent-foreground",
                   )}
                   onClick={() => setIsOpen(false)}
                 >
@@ -91,10 +98,10 @@ export function Sidebar() {
             <ThemeToggle />
             <Button
               variant="ghost"
-              className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
+              className="w-full justify-start gap-3 px-3 py-2.5 h-auto font-medium text-muted-foreground hover:text-destructive"
               onClick={() => logout()}
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut className="h-4 w-4 shrink-0" />
               Выйти
             </Button>
           </div>

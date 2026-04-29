@@ -160,12 +160,13 @@ export function MyTasksFeed() {
               {items.map((t) => {
                 const overdue = isOverdue(t);
                 const ready = t.is_ready && t.status === "todo";
+                const waitingDeps = t.status === "todo" && !t.is_ready;
                 const blocked = t.status === "blocked";
 
                 return (
                   <li key={`${t.project_slug}-${t.id}`}>
                     <Link
-                      href={`/projects/${t.project_slug}`}
+                      href={`/projects/${t.project_slug}?task=${t.id}`}
                       className={cn(
                         "group flex gap-3 rounded-xl border p-3.5 transition-all",
                         "hover:border-primary/40 hover:bg-background/80 hover:shadow-md",
@@ -177,10 +178,16 @@ export function MyTasksFeed() {
                         blocked &&
                           !overdue &&
                           !ready &&
+                          !waitingDeps &&
                           "border-amber-500/25 bg-amber-500/[0.04] shadow-[inset_3px_0_0_0_hsl(var(--warning))]",
+                        waitingDeps &&
+                          !overdue &&
+                          !blocked &&
+                          "border-border/80 bg-muted/30 shadow-[inset_3px_0_0_0_hsl(var(--muted-foreground)/0.45)] opacity-95",
                         !overdue &&
                           !ready &&
                           !blocked &&
+                          !waitingDeps &&
                           "border-border/70 bg-background/40 shadow-[inset_3px_0_0_0_hsl(var(--primary)/0.35)]",
                       )}
                     >
@@ -224,6 +231,12 @@ export function MyTasksFeed() {
                             <span className="inline-flex items-center gap-1 text-success font-medium">
                               <PlayCircle className="h-3 w-3" />
                               Можно начать
+                            </span>
+                          )}
+                          {waitingDeps && !blocked && (
+                            <span className="inline-flex items-center gap-1 text-muted-foreground">
+                              <Lock className="h-3 w-3" />
+                              Ждёт зависимостей
                             </span>
                           )}
                           {blocked && (

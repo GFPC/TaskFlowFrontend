@@ -141,6 +141,40 @@
     }
 }
 
+/* Мягкий «воздух» за контентом: градиент + сетка точек (не конкурирует с карточками) */
+@layer utilities {
+    .app-main-glow {
+        background-image: radial-gradient(
+            1200px 520px at 50% -240px,
+            color-mix(in oklch, var(--primary) 14%, transparent),
+            transparent 65%
+        );
+    }
+
+    .dark .app-main-glow {
+        background-image: radial-gradient(
+            1000px 480px at 50% -200px,
+            color-mix(in oklch, var(--primary) 18%, transparent),
+            transparent 62%
+        );
+    }
+
+    .app-main-dots {
+        background-image: radial-gradient(
+            color-mix(in oklch, var(--foreground) 9%, transparent) 1px,
+            transparent 1px
+        );
+        background-size: 22px 22px;
+    }
+
+    .dark .app-main-dots {
+        background-image: radial-gradient(
+            color-mix(in oklch, var(--foreground) 6%, transparent) 1px,
+            transparent 1px
+        );
+    }
+}
+
 aside {
     transition:
         background-color 0.3s ease-in-out,

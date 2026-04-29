@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { users, ApiError } from "@/lib/api";
+import { users, formatApiError } from "@/lib/api";
 import {
   Select,
   SelectContent,
@@ -45,7 +45,7 @@ export default function SettingsPage() {
       toast.success("Настройки обновлены");
       refreshUser();
     } catch (err) {
-      if (err instanceof ApiError) toast.error(err.detail);
+      toast.error(formatApiError(err));
     } finally {
       setLoading(false);
     }
@@ -58,7 +58,7 @@ export default function SettingsPage() {
       toast.success("Тема обновлена");
       refreshUser();
     } catch (err) {
-      if (err instanceof ApiError) toast.error(err.detail);
+      toast.error(formatApiError(err));
     } finally {
       setLoading(false);
     }
@@ -90,7 +90,7 @@ export default function SettingsPage() {
                 </p>
               </div>
               <Switch
-                checked={user?.notification_settings?.email}
+                checked={!!user?.notification_settings?.email}
                 onCheckedChange={(v) => toggleSetting("email", v)}
                 disabled={loading}
               />
@@ -104,7 +104,7 @@ export default function SettingsPage() {
                 </p>
               </div>
               <Switch
-                checked={user?.notification_settings?.task_assigned}
+                checked={!!user?.notification_settings?.task_assigned}
                 onCheckedChange={(v) => toggleSetting("task_assigned", v)}
                 disabled={loading}
               />
@@ -118,7 +118,7 @@ export default function SettingsPage() {
                 </p>
               </div>
               <Switch
-                checked={user?.notification_settings?.task_completed}
+                checked={!!user?.notification_settings?.task_completed}
                 onCheckedChange={(v) => toggleSetting("task_completed", v)}
                 disabled={loading}
               />
@@ -132,7 +132,7 @@ export default function SettingsPage() {
                 </p>
               </div>
               <Switch
-                checked={user?.notification_settings?.dependency_ready}
+                checked={!!user?.notification_settings?.dependency_ready}
                 onCheckedChange={(v) => toggleSetting("dependency_ready", v)}
                 disabled={loading}
               />

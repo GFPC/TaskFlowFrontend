@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 
 import useSWR from "swr";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import ReactFlow, {
   Background,
@@ -25,7 +25,15 @@ import ReactFlow, {
 
 import "reactflow/dist/style.css";
 
-import { tasks as tasksApi, ApiError, type GraphData } from "@/lib/api";
+import {
+  tasks as tasksApi,
+  formatApiError,
+  meta as metaApi,
+  projects as projectsApi,
+  type DependencyAction,
+  type GraphData,
+  type ProjectDetail,
+} from "@/lib/api";
 
 import { Button } from "@/components/ui/button";
 
@@ -42,6 +50,13 @@ import { CreateTaskDialog } from "@/components/graph/create-task-dialog";
 import { toast } from "sonner";
 
 import { debounce } from "lodash";
+
+import { useAuth } from "@/lib/auth-context";
+import {
+  canCreateTasksInProject,
+  canDeleteTask,
+  canManageTaskGraph,
+} from "@/lib/project-permissions";
 
 import { Separator } from "@/components/ui/separator";
 
@@ -63,6 +78,55 @@ const edgeTypes = {
   simple: DependencyEdge,
 };
 
+function coerceGraphEdgeActions(raw: unknown): DependencyAction[] {
+  if (!Array.isArray(raw)) return [];
+  const out: DependencyAction[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const item = raw[i];
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    if (typeof o.action_type_code === "string") {
+      out.push({
+        id: typeof o.id === "number" ? o.id : -(i + 1),
+        action_type_code: o.action_type_code,
+        target_user_username:
+          typeof o.target_user_username === "string"
+            ? o.target_user_username
+            : undefined,
+        target_status:
+          typeof o.target_status === "string" ? o.target_status : undefined,
+        message_template:
+          typeof o.message_template === "string"
+            ? o.message_template
+            : undefined,
+        delay_minutes:
+          typeof o.delay_minutes === "number" ? o.delay_minutes : undefined,
+        execute_order:
+          typeof o.execute_order === "number" ? o.execute_order : undefined,
+      });
+      continue;
+    }
+    if (typeof o.type === "string") {
+      out.push({
+        id: typeof o.id === "number" ? o.id : -(i + 1),
+        action_type_code: o.type,
+        delay_minutes: typeof o.delay === "number" ? o.delay : undefined,
+      });
+    }
+  }
+  return out;
+}
+
+function edgeStrokeForType(t: string | undefined): string {
+  if (t === "blocks") return "var(--destructive)";
+  if (t === "simple") return "var(--muted-foreground)";
+  return "var(--primary)";
+}
+
+function edgeDashForType(t: string | undefined): string | undefined {
+  return t === "simple" ? "6 4" : undefined;
+}
+
 function graphToNodes(graphData: GraphData): Node[] {
   return graphData.nodes.map((n) => ({
     id: String(n.id),
@@ -78,35 +142,58 @@ function normalizeEdgeType(t: string | undefined): keyof typeof edgeTypes {
 }
 
 function graphToEdges(graphData: GraphData): Edge[] {
-  return graphData.edges.map((e) => ({
-    id: String(e.id),
-    source: String(e.source),
-    target: String(e.target),
-    type: normalizeEdgeType(e.type),
-    animated: e.animated ?? true,
-    label: e.label,
-    markerEnd: {
-      type: MarkerType.ArrowClosed,
-      width: 20,
-      height: 20,
-      color: "var(--primary)",
-    },
-    data: {
-      dependency_id: e.data?.dependency_id,
-      description: e.data?.description,
-      actions: e.data?.actions ?? [],
-    },
-    style: {
-      stroke: "var(--primary)",
-      strokeLinecap: "round",
-    },
-  }));
+  return graphData.edges.map((e) => {
+    const edgeType = normalizeEdgeType(e.type);
+    const stroke = edgeStrokeForType(edgeType);
+    const strokeDasharray = edgeDashForType(edgeType);
+    return {
+      id: String(e.id),
+      source: String(e.source),
+      target: String(e.target),
+      type: edgeType,
+      animated: e.animated ?? true,
+      label: e.label,
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: 20,
+        height: 20,
+        color: stroke,
+      },
+      data: {
+        dependency_id: e.data?.dependency_id,
+        description: e.data?.description,
+        actions: coerceGraphEdgeActions(e.data?.actions),
+      },
+      style: {
+        stroke,
+        strokeLinecap: "round",
+        ...(strokeDasharray ? { strokeDasharray } : {}),
+      },
+    };
+  });
 }
 
 export default function GraphPage() {
   const params = useParams();
   const router = useRouter();
   const slug = params.slug as string;
+  const { user } = useAuth();
+
+  /** Ключ совпадает со страницей проекта — общий кэш; username ловит смену аккаунта. */
+  const swrIdentity = user?.username ?? "__";
+
+  const { data: project } = useSWR<ProjectDetail>(
+    slug ? (["project", slug, swrIdentity] as const) : null,
+    () => projectsApi.get(slug),
+    { dedupingInterval: 60_000 },
+  );
+  const userRole = project?.user_role;
+  const canManageGraph = canManageTaskGraph(userRole);
+  const canCreateTask =
+    !!project?.can_create_tasks && canCreateTasksInProject(userRole);
+
+  const canManageGraphRef = useRef(canManageGraph);
+  canManageGraphRef.current = canManageGraph;
 
   const {
     data: graphData,
@@ -114,6 +201,11 @@ export default function GraphPage() {
     isLoading: graphLoading,
   } = useSWR(`graph-${slug}`, () => tasksApi.graph(slug), {
     dedupingInterval: 30_000,
+  });
+
+  const { data: graphMeta } = useSWR("task-graph-meta", () => metaApi.taskGraph(), {
+    dedupingInterval: 600_000,
+    revalidateOnFocus: false,
   });
 
   const [nodes, setNodes, onNodesChangeState] = useNodesState([]);
@@ -143,6 +235,18 @@ export default function GraphPage() {
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
+      if (!canManageGraphRef.current) {
+        const hasRemove = changes.some((c) => c.type === "remove");
+        if (hasRemove) {
+          toast.error(
+            "Удалять связи на графе могут только владелец и менеджер проекта.",
+          );
+        }
+        const filtered = changes.filter((c) => c.type !== "remove");
+        if (filtered.length === 0) return;
+        onEdgesChangeState(filtered);
+        return;
+      }
       onEdgesChangeState(changes);
       for (const c of changes) {
         if (c.type !== "remove") continue;
@@ -160,9 +264,8 @@ export default function GraphPage() {
             await tasksApi.deleteDependency(slug, depId);
             toast.success("Связь удалена");
           } catch (err: unknown) {
-            const detail =
-              err instanceof ApiError ? err.detail : "Ошибка удаления связи";
-            toast.error(detail);
+            const msg = formatApiError(err);
+            toast.error(msg);
             void mutate();
           }
         })();
@@ -171,35 +274,58 @@ export default function GraphPage() {
     [onEdgesChangeState, edges, slug, mutate],
   );
 
-  const debouncedSave = useMemo(
+  const buildGraphPayload = useCallback(
+    (
+      nds: Node[],
+      eds: Edge[],
+      vp: { x: number; y: number; zoom: number },
+    ): GraphData => ({
+      nodes: nds.map((n) => ({
+        id: n.id as string,
+        type: n.type || "taskNode",
+        data: n.data as GraphData["nodes"][0]["data"],
+        position: n.position,
+      })),
+      edges: eds.map((e) => ({
+        id: e.id,
+        source: e.source as string,
+        target: e.target as string,
+        type: normalizeEdgeType(e.type),
+        animated: e.animated,
+        label: typeof e.label === "string" ? e.label : undefined,
+        data: e.data as GraphData["edges"][0]["data"],
+      })),
+      viewport: vp,
+    }),
+    [],
+  );
+
+  const debouncedSaveLayout = useMemo(
     () =>
-      debounce(async (nds: Node[], eds: Edge[], vp: typeof viewport) => {
-        const updatedGraph: GraphData = {
-          nodes: nds.map((n) => ({
-            id: n.id as string,
-            type: n.type || "taskNode",
-            data: n.data as GraphData["nodes"][0]["data"],
-            position: n.position,
-          })),
-          edges: eds.map((e) => ({
-            id: e.id,
-            source: e.source as string,
-            target: e.target as string,
-            type: normalizeEdgeType(e.type),
-            animated: e.animated,
-            label: typeof e.label === "string" ? e.label : undefined,
-            data: e.data as GraphData["edges"][0]["data"],
-          })),
-          viewport: vp,
-        };
-        try {
-          await tasksApi.saveGraph(slug, updatedGraph);
-          toast.success("Позиции сохранены", { duration: 1000 });
-        } catch {
-          toast.error("Ошибка автосохранения");
-        }
+      debounce((nds: Node[], eds: Edge[], vp: typeof viewport) => {
+        if (!canManageGraphRef.current) return;
+        const updatedGraph = buildGraphPayload(nds, eds, vp);
+        void tasksApi.saveGraph(slug, updatedGraph).catch(() => {});
       }, 500),
-    [slug],
+    [slug, buildGraphPayload],
+  );
+
+  const debouncedSaveView = useMemo(
+    () =>
+      debounce((nds: Node[], eds: Edge[], vp: typeof viewport) => {
+        if (!canManageGraphRef.current) return;
+        const updatedGraph = buildGraphPayload(nds, eds, vp);
+        void tasksApi.saveGraph(slug, updatedGraph).catch(() => {});
+      }, 700),
+    [slug, buildGraphPayload],
+  );
+
+  useEffect(
+    () => () => {
+      debouncedSaveLayout.cancel();
+      debouncedSaveView.cancel();
+    },
+    [debouncedSaveLayout, debouncedSaveView],
   );
 
   const onNodesChange = useCallback(
@@ -212,16 +338,22 @@ export default function GraphPage() {
       );
       if (hasPosChange) {
         setNodes((nds) => {
-          debouncedSave(nds, edges, viewport);
+          debouncedSaveLayout(nds, edges, viewport);
           return nds;
         });
       }
     },
-    [onNodesChangeState, debouncedSave, setNodes, edges, viewport],
+    [onNodesChangeState, debouncedSaveLayout, setNodes, edges, viewport],
   );
 
   const onConnect = useCallback(
     async (connection: Connection) => {
+      if (!canManageGraphRef.current) {
+        toast.error(
+          "Связи на графе настраивают только владелец и менеджер проекта.",
+        );
+        return;
+      }
       if (!connection.source || !connection.target) return;
 
       const sourceNode = nodes.find((n) => n.id === connection.source);
@@ -245,10 +377,10 @@ export default function GraphPage() {
           type: MarkerType.ArrowClosed,
           width: 20,
           height: 20,
-          color: "var(--primary)",
+          color: "var(--destructive)",
         },
         style: {
-          stroke: "var(--primary)",
+          stroke: "var(--destructive)",
           strokeLinecap: "round",
         },
       };
@@ -264,11 +396,7 @@ export default function GraphPage() {
         mutate();
       } catch (err: unknown) {
         setEdges((eds) => eds.filter((e) => e.id !== newEdge.id));
-        const detail =
-          err instanceof ApiError
-            ? err.detail
-            : "Ошибка: возможен цикл зависимостей";
-        toast.error(detail);
+        toast.error(formatApiError(err));
       }
     },
     [slug, setEdges, mutate, nodes],
@@ -283,7 +411,16 @@ export default function GraphPage() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
         (event.key === "Delete" || event.key === "Backspace") &&
-        selectedTask
+        selectedTask &&
+        project &&
+        canDeleteTask(
+          project.user_role,
+          {
+            creator_username:
+              (selectedTask as { creator_username?: string }).creator_username,
+          },
+          user?.username,
+        )
       ) {
         event.preventDefault();
         event.stopPropagation();
@@ -299,7 +436,7 @@ export default function GraphPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedTask, nodes]);
+  }, [selectedTask, nodes, project, user?.username]);
 
   if (graphLoading && !graphData) {
     return (
@@ -311,17 +448,33 @@ export default function GraphPage() {
   }
 
   const handleDeleteNode = async () => {
-    if (!nodeToDelete) return;
+    if (!nodeToDelete || !project) return;
+    const taskData = nodeToDelete.data as {
+      id: number;
+      creator_username?: string;
+    };
+    if (
+      !canDeleteTask(
+        project.user_role,
+        { creator_username: taskData.creator_username },
+        user?.username,
+      )
+    ) {
+      toast.error("Удалять задачи могут только владелец и менеджер проекта.");
+      setShowDeleteDialog(false);
+      setNodeToDelete(null);
+      return;
+    }
     try {
-      const taskId = (nodeToDelete.data as { id: number }).id;
+      const taskId = taskData.id;
       await tasksApi.delete(slug, taskId);
       toast.success("Задача удалена");
       setShowDeleteDialog(false);
       setNodeToDelete(null);
       setSelectedTask(null);
       mutate();
-    } catch (err: any) {
-      toast.error(err.detail || "Ошибка удаления");
+    } catch (err: unknown) {
+      toast.error(formatApiError(err));
     }
   };
   return (
@@ -333,7 +486,12 @@ export default function GraphPage() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
-        onMoveEnd={(_, v) => setViewport(v)}
+        onMoveEnd={(_, v) => {
+          setViewport(v);
+          debouncedSaveView(nodes, edges, v);
+        }}
+        nodesDraggable={canManageGraph}
+        nodesConnectable={canManageGraph}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
@@ -347,7 +505,7 @@ export default function GraphPage() {
           strokeLinecap: "round",
         }}
         className="[&_.react-flow__edge-path]:stroke-linecap-round"
-        deleteKeyCode={["Backspace", "Delete"]}
+        deleteKeyCode={canManageGraph ? ["Backspace", "Delete"] : null}
         snapToGrid={snapToGrid}
         snapGrid={snapGrid}
       >
@@ -385,14 +543,16 @@ export default function GraphPage() {
               Назад
             </Button>
             <Separator orientation="vertical" className="h-8" />
-            <Button
-              size="sm"
-              className="rounded-xl gap-1 shadow-sm"
-              onClick={() => setShowCreate(true)}
-            >
-              <Plus className="h-4 w-4" />
-              Задача
-            </Button>
+            {canCreateTask ? (
+              <Button
+                size="sm"
+                className="rounded-xl gap-1 shadow-sm"
+                onClick={() => setShowCreate(true)}
+              >
+                <Plus className="h-4 w-4" />
+                Задача
+              </Button>
+            ) : null}
             <Button
               variant="outline"
               size="sm"
@@ -421,7 +581,7 @@ export default function GraphPage() {
 
         <Panel
           position="top-right"
-          className="m-3 rounded-2xl border border-border/60 bg-card/90 px-4 py-3 text-[11px] text-muted-foreground shadow-lg backdrop-blur-md"
+          className="m-3 max-h-[min(420px,70vh)] max-w-[15rem] overflow-y-auto rounded-2xl border border-border/60 bg-card/90 px-4 py-3 text-[11px] text-muted-foreground shadow-lg backdrop-blur-md"
         >
           <p className="font-semibold text-foreground mb-2 text-xs">Легенда</p>
           <div className="flex flex-col gap-2">
@@ -430,9 +590,47 @@ export default function GraphPage() {
               <span>Готова к работе</span>
             </div>
             <div className="flex items-center gap-2.5">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-primary" />
-              <span>В работе / связь</span>
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-primary/90" />
+              <span>Ожидает / в работе</span>
             </div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground pt-1">
+              Тип связи
+            </p>
+            {graphMeta?.dependency_types &&
+            graphMeta.dependency_types.length > 0 ? (
+              graphMeta.dependency_types.map((dt) => (
+                <div key={dt.code} className="flex items-center gap-2.5">
+                  <span
+                    className="h-0.5 w-7 shrink-0 rounded-full"
+                    style={{
+                      background:
+                        dt.code === "blocks"
+                          ? "var(--destructive)"
+                          : dt.code === "simple"
+                            ? "var(--muted-foreground)"
+                            : "var(--primary)",
+                    }}
+                  />
+                  <span className="leading-tight">
+                    {dt.display_name ?? dt.label ?? dt.code}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <>
+                <div className="flex items-center gap-2.5">
+                  <span className="h-0.5 w-7 shrink-0 rounded-full bg-destructive" />
+                  <span>Блокирует</span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <span
+                    className="h-0.5 w-7 shrink-0 rounded-full"
+                    style={{ background: "var(--muted-foreground)" }}
+                  />
+                  <span>Слабая связь</span>
+                </div>
+              </>
+            )}
           </div>
         </Panel>
       </ReactFlow>
@@ -444,6 +642,23 @@ export default function GraphPage() {
           open={!!selectedTask}
           onClose={() => setSelectedTask(null)}
           onUpdate={() => mutate()}
+          onOpenRelatedTask={(taskId) => {
+            const node = nodes.find(
+              (n) => (n.data as { id?: number }).id === taskId,
+            );
+            if (node) {
+              setSelectedTask(node.data);
+              return;
+            }
+            void tasksApi
+              .get(slug, taskId)
+              .then((d) => {
+                setSelectedTask(d);
+              })
+              .catch(() => {
+                toast.error("Не удалось загрузить задачу");
+              });
+          }}
         />
       )}
 

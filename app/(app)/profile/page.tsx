@@ -1,8 +1,8 @@
 "use client";
 
 import { useAuth } from "@/lib/auth-context";
-import { useState } from "react";
-import { users } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { users, formatApiError } from "@/lib/api";
 import {
   Card,
   CardContent,
@@ -28,14 +28,20 @@ export default function ProfilePage() {
   const [confirmPass, setConfirmPass] = useState("");
   const [changingPass, setChangingPass] = useState(false);
 
+  useEffect(() => {
+    if (!user) return;
+    setFirstName(user.first_name || "");
+    setLastName(user.last_name || "");
+  }, [user]);
+
   async function handleUpdateProfile() {
     setSaving(true);
     try {
       await users.updateMe({ first_name: firstName, last_name: lastName });
       toast.success("Профиль обновлён");
       refreshUser();
-    } catch {
-      toast.error("Ошибка обновления профиля");
+    } catch (err) {
+      toast.error(formatApiError(err));
     } finally {
       setSaving(false);
     }
@@ -54,8 +60,8 @@ export default function ProfilePage() {
       setOldPass("");
       setNewPass("");
       setConfirmPass("");
-    } catch {
-      toast.error("Ошибка смены пароля");
+    } catch (err) {
+      toast.error(formatApiError(err));
     } finally {
       setChangingPass(false);
     }

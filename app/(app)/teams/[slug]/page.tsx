@@ -5,6 +5,7 @@ import useSWR, { mutate } from "swr";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { teams, projects as projectsApi, ApiError, type TeamDetail } from "@/lib/api";
+import { ruProjectsCount } from "@/lib/ru-plurals";
 import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -56,7 +57,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
 
   const { data: teamProjects, isLoading: projectsLoading } = useSWR(
     team ? `team-projects-${slug}` : null,
-    () => projectsApi.byTeam(slug),
+    () => projectsApi.byTeam(slug, true),
     { dedupingInterval: 300000 }
   );
 
@@ -193,7 +194,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
             </span>
             <span className="flex items-center gap-1">
               <FolderKanban className="h-3.5 w-3.5" />
-              {team.projects_count} проектов
+              {ruProjectsCount(team.projects_count ?? 0)}
             </span>
           </div>
         </div>
@@ -241,7 +242,12 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
         {/* Projects Tab */}
         <TabsContent value="projects" className="mt-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-foreground">Проекты команды</h3>
+            <h3 className="font-semibold text-foreground">
+              Проекты команды
+              <span className="ml-1.5 font-normal text-muted-foreground">
+                ({team.projects_count})
+              </span>
+            </h3>
             {team.can_manage_projects && (
               <Button size="sm" asChild>
                 <Link href={`/projects/new?team=${slug}`} className="gap-1">
@@ -360,11 +366,19 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {team.can_manage && member.role !== "owner" && member.username !== user?.username ? (
-                        <>
+                      {(() => {
+                        const roleSelectLocked =
+                          !team.can_manage ||
+                          member.role === "owner" ||
+                          member.username === user?.username;
+                        return (
                           <Select
                             value={member.role}
-                            onValueChange={(role) => handleChangeRole(member.username, role)}
+                            disabled={roleSelectLocked}
+                            onValueChange={(role) => {
+                              if (roleSelectLocked) return;
+                              void handleChangeRole(member.username, role);
+                            }}
                           >
                             <SelectTrigger className="w-28 h-8 text-xs">
                               <SelectValue />
@@ -374,21 +388,20 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
                               <SelectItem value="admin">Админ</SelectItem>
                             </SelectContent>
                           </Select>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={() => handleRemoveMember(member.username)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </>
-                      ) : (
-                        <Badge variant="outline" className="gap-1">
-                          {roleIcon(member.role)}
-                          {roleLabel(member.role)}
-                        </Badge>
-                      )}
+                        );
+                      })()}
+                      {team.can_manage &&
+                      member.role !== "owner" &&
+                      member.username !== user?.username ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => handleRemoveMember(member.username)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : null}
                     </div>
                   </CardContent>
                 </Card>
