@@ -613,7 +613,7 @@ export default function GraphPage() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
-        (event.key === "Delete" || event.key === "Backspace") &&
+        event.key === "Delete" &&
         selectedTask &&
         project &&
         canDeleteTask(
@@ -708,7 +708,7 @@ export default function GraphPage() {
           strokeLinecap: "round",
         }}
         className="[&_.react-flow__edge-path]:stroke-linecap-round"
-        deleteKeyCode={canManageGraph ? ["Backspace", "Delete"] : null}
+        deleteKeyCode={canManageGraph ? ["Delete"] : null}
         snapToGrid={snapToGrid}
         snapGrid={snapGrid}
       >
