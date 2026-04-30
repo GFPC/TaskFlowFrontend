@@ -87,7 +87,7 @@ export default function LoginPage() {
                 id="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="your_username"
+                placeholder="Ваш username"
                 autoComplete="username"
                 required
               />
