@@ -28,7 +28,6 @@ import "reactflow/dist/style.css";
 import {
   tasks as tasksApi,
   formatApiError,
-  meta as metaApi,
   projects as projectsApi,
   type DependencyAction,
   type GraphData,
@@ -143,7 +142,8 @@ function edgeStrokeForType(
 }
 
 function edgeDashForType(t: string | undefined): string | undefined {
-  return t === "simple" ? "6 4" : undefined;
+  if (t === "simple") return "6 4";
+  return undefined;
 }
 
 function graphToNodes(graphData: GraphData): Node[] {
@@ -349,15 +349,6 @@ export default function GraphPage() {
     dedupingInterval: 30_000,
   });
 
-  const { data: graphMeta } = useSWR(
-    "task-graph-meta",
-    () => metaApi.taskGraph(),
-    {
-      dedupingInterval: 600_000,
-      revalidateOnFocus: false,
-    },
-  );
-
   const [nodes, setNodes, onNodesChangeState] = useNodesState([]);
 
   const [edges, setEdges, onEdgesChangeState] = useEdgesState([]);
@@ -555,16 +546,18 @@ export default function GraphPage() {
         return;
       }
 
+      const edgeType = "blocks";
       const state = getBlockEdgeState(
-        "blocks",
+        edgeType,
         sourceNode?.data as { status?: string } | undefined,
       );
-      const stroke = edgeStrokeForType("blocks", state);
+      const stroke = edgeStrokeForType(edgeType, state);
+      const strokeDasharray = edgeDashForType(edgeType);
       const newEdge: Edge = {
         id: `e${connection.source}-${connection.target}`,
         source: connection.source,
         target: connection.target,
-        type: "blocks",
+        type: edgeType,
         animated: true,
         markerEnd: {
           type: MarkerType.ArrowClosed,
@@ -585,6 +578,7 @@ export default function GraphPage() {
         style: {
           stroke,
           strokeLinecap: "round",
+          ...(strokeDasharray ? { strokeDasharray } : {}),
         },
       };
 
@@ -593,7 +587,7 @@ export default function GraphPage() {
       try {
         await tasksApi.createDependency(slug, sourceTaskId, {
           target_task_id: targetTaskId,
-          dependency_type: "blocks",
+          dependency_type: edgeType,
         });
         toast.success("Зависимость добавлена");
         mutate();
@@ -822,51 +816,13 @@ export default function GraphPage() {
               Состояние связи
             </p>
             <div className="flex items-center gap-2.5">
+              <span className="h-0.5 w-7 shrink-0 rounded-full bg-destructive" />
+              <span>Блокирует</span>
+            </div>
+            <div className="flex items-center gap-2.5">
               <span className="h-0.5 w-7 shrink-0 rounded-full bg-success" />
               <span>Разблокировано</span>
             </div>
-            <div className="flex items-center gap-2.5">
-              <span className="h-0.5 w-7 shrink-0 rounded-full bg-destructive" />
-              <span>Заблокировано</span>
-            </div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground pt-1">
-              Тип связи
-            </p>
-            {graphMeta?.dependency_types &&
-            graphMeta.dependency_types.length > 0 ? (
-              graphMeta.dependency_types.map((dt) => (
-                <div key={dt.code} className="flex items-center gap-2.5">
-                  <span
-                    className="h-0.5 w-7 shrink-0 rounded-full"
-                    style={{
-                      background:
-                        dt.code === "blocks"
-                          ? "var(--destructive)"
-                          : dt.code === "simple"
-                            ? "var(--muted-foreground)"
-                            : "var(--primary)",
-                    }}
-                  />
-                  <span className="leading-tight">
-                    {dt.display_name ?? dt.label ?? dt.code}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <>
-                <div className="flex items-center gap-2.5">
-                  <span className="h-0.5 w-7 shrink-0 rounded-full bg-destructive" />
-                  <span>Блокирует</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <span
-                    className="h-0.5 w-7 shrink-0 rounded-full"
-                    style={{ background: "var(--muted-foreground)" }}
-                  />
-                  <span>Слабая связь</span>
-                </div>
-              </>
-            )}
           </div>
         </Panel>
       </ReactFlow>
