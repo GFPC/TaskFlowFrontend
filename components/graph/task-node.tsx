@@ -30,6 +30,8 @@ interface TaskNodeData {
   priority: 0 | 1 | 2;
   deadline: string | null;
   is_ready: boolean;
+  focusMode?: "next-actions";
+  is_next_action?: boolean;
 }
 
 function TaskNodeComponent({ data, selected }: NodeProps) {
@@ -73,6 +75,12 @@ function TaskNodeComponent({ data, selected }: NodeProps) {
         className={cn(
           "rounded-xl border bg-card/95 backdrop-blur-sm w-[248px] overflow-hidden transition-all duration-200",
           "shadow-[0_1px_2px_hsl(var(--foreground)/0.04),0_8px_24px_-4px_hsl(var(--foreground)/0.08)]",
+          nodeData.focusMode === "next-actions" &&
+            !nodeData.is_next_action &&
+            "opacity-25 saturate-50",
+          nodeData.focusMode === "next-actions" &&
+            nodeData.is_next_action &&
+            "ring-2 ring-success ring-offset-2 ring-offset-background shadow-[0_0_0_1px_hsl(var(--success)/0.3),0_16px_42px_-10px_hsl(var(--success)/0.55)]",
           selected &&
             "ring-2 ring-primary/80 ring-offset-2 ring-offset-background shadow-lg",
           nodeData.status === "todo" &&
@@ -119,7 +127,10 @@ function TaskNodeComponent({ data, selected }: NodeProps) {
                 </Badge>
                 <div className="flex items-center gap-1 shrink-0">
                   {nodeData.is_ready && nodeData.status === "todo" && (
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-success/15 text-success">
+                    <span
+                      className="flex h-6 w-6 items-center justify-center rounded-full bg-success/15 text-success"
+                      title="Можно брать в работу"
+                    >
                       <Play className="h-3 w-3" />
                     </span>
                   )}
@@ -172,6 +183,12 @@ function TaskNodeComponent({ data, selected }: NodeProps) {
                       day: "numeric",
                       month: "short",
                     })}
+                  </div>
+                )}
+                {nodeData.is_next_action && (
+                  <div className="flex items-center gap-1 rounded-md bg-success/10 px-2 py-0.5 font-medium text-success">
+                    <Play className="h-2.5 w-2.5 shrink-0" />
+                    Следующая
                   </div>
                 )}
               </div>

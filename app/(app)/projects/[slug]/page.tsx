@@ -78,6 +78,8 @@ import {
   Search,
   PlayCircle,
   ListFilter,
+  Pencil,
+  MessageSquareText,
 } from "lucide-react";
 import {
   canAssignProjectTasks,
@@ -89,6 +91,7 @@ import {
   normalizeProjectUserRole,
 } from "@/lib/project-permissions";
 import { TaskDetailDialog } from "@/components/graph/task-detail-dialog";
+import { NotesPanel } from "@/components/notes/notes-panel";
 
 function isTaskOverdue(t: Task): boolean {
   if (!t.deadline || t.status === "completed") return false;
@@ -252,6 +255,42 @@ export default function ProjectDetailPage({
   // Delete dialog
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+
+  const openEditProject = () => {
+    if (!project?.can_edit_project) return;
+    setEditName(project.name);
+    setEditDescription(project.description ?? "");
+    setEditOpen(true);
+  };
+
+  const handleUpdateProject = async () => {
+    if (!project?.can_edit_project) return;
+    const nextName = editName.trim();
+    if (nextName.length < 2) {
+      toast.error("Название проекта должно быть не короче 2 символов");
+      return;
+    }
+    setEditLoading(true);
+    try {
+      await projects.update(slug, {
+        name: nextName,
+        description: editDescription.trim() || undefined,
+      });
+      await mutateProject();
+      mutate("projects");
+      mutate(`team-projects-${project.team_slug}`);
+      toast.success("Проект обновлен");
+      setEditOpen(false);
+    } catch (err) {
+      toast.error(formatApiError(err));
+    } finally {
+      setEditLoading(false);
+    }
+  };
 
   const handleCreateTask = async () => {
     if (!taskName.trim() || !project) return;
@@ -542,6 +581,17 @@ export default function ProjectDetailPage({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {project.can_edit_project && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openEditProject}
+              className="gap-1"
+            >
+              <Pencil className="h-4 w-4" />
+              Изменить
+            </Button>
+          )}
           <Button variant="outline" size="sm" asChild>
             <Link href={`/projects/${slug}/graph`} className="gap-1">
               <GitBranch className="h-4 w-4" />
@@ -614,6 +664,60 @@ export default function ProjectDetailPage({
         </div>
       </div>
 
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Редактировать проект</DialogTitle>
+            <DialogDescription>
+              Измените название и описание проекта. Это увидят все участники.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="project-name">Название</Label>
+              <Input
+                id="project-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Название проекта"
+                minLength={2}
+                maxLength={200}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="project-description">
+                Описание (необязательно)
+              </Label>
+              <Textarea
+                id="project-description"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="О чем проект?"
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEditOpen(false)}
+              disabled={editLoading}
+            >
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              onClick={handleUpdateProject}
+              disabled={editLoading || editName.trim().length < 2}
+            >
+              {editLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Сохранить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Stats */}
       {taskStats && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -667,6 +771,7 @@ export default function ProjectDetailPage({
       <Tabs defaultValue="tasks" className="w-full">
         <TabsList>
           <TabsTrigger value="tasks">Задачи</TabsTrigger>
+          <TabsTrigger value="notes">Заметки</TabsTrigger>
           <TabsTrigger value="members">Участники</TabsTrigger>
         </TabsList>
 
@@ -1000,6 +1105,27 @@ export default function ProjectDetailPage({
               ))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="notes" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <MessageSquareText className="h-4 w-4 text-primary" />
+                Заметки проекта
+              </CardTitle>
+              <CardDescription>
+                Общие заметки видны всем участникам проекта.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <NotesPanel
+                projectSlug={slug}
+                currentUsername={user?.username}
+                projectRole={project.user_role}
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Members Tab */}

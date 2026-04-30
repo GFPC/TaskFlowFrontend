@@ -60,8 +60,10 @@ import {
   Loader2,
   Lock,
   ArrowRight,
+  MessageSquareText,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { NotesPanel } from "@/components/notes/notes-panel";
 
 const statusLabels: Record<string, string> = {
   todo: "К выполнению",
@@ -540,6 +542,27 @@ export function TaskDetailDialog({
               )}
             </div>
           )}
+
+          <Separator />
+
+          <div className="space-y-3">
+            <div>
+              <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <MessageSquareText className="h-4 w-4 text-primary" />
+                Заметки
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Комментарии и рабочие пометки по этой задаче.
+              </p>
+            </div>
+            <NotesPanel
+              projectSlug={projectSlug}
+              taskId={task.id}
+              currentUsername={user?.username}
+              projectRole={projectRole}
+              compact
+            />
+          </div>
 
           <Separator />
 

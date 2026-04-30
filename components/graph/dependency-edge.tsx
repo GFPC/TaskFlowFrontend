@@ -20,6 +20,9 @@ type DependencyEdgeData = {
   dependency_id?: number;
   description?: string;
   actions?: DependencyAction[];
+  state?: "blocked" | "unblocked";
+  stateLabel?: string;
+  stateReason?: string;
 };
 
 function actionSummary(a: DependencyAction): string {
@@ -53,11 +56,12 @@ function DependencyEdgeComponent({
   });
 
   const caption =
-    typeof label === "string"
+    data?.stateLabel ??
+    (typeof label === "string"
       ? label
       : data?.description?.trim()
         ? data.description
-        : null;
+        : null);
 
   const actions = data?.actions ?? [];
   const showActions = actions.length > 0;
@@ -87,15 +91,42 @@ function DependencyEdgeComponent({
             <TooltipProvider delayDuration={150}>
               <div className="flex flex-col items-center gap-1">
                 {caption ? (
-                  <span
-                    className={cn(
-                      "inline-block text-[10px] font-medium leading-tight px-2 py-0.5 rounded-md",
-                      "bg-background/95 backdrop-blur-sm border border-border/70 shadow-sm",
-                      "text-muted-foreground text-center",
-                    )}
-                  >
-                    {caption}
-                  </span>
+                  data?.stateReason ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span
+                          className={cn(
+                            "inline-block cursor-help text-[10px] font-medium leading-tight px-2 py-0.5 rounded-md",
+                            "bg-background/95 backdrop-blur-sm border border-border/70 shadow-sm",
+                            "text-muted-foreground text-center",
+                            data?.state === "unblocked" &&
+                              "border-success/30 bg-success/10 text-success",
+                            data?.state === "blocked" &&
+                              "border-destructive/25 bg-destructive/10 text-destructive",
+                          )}
+                        >
+                          {caption}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs">
+                        {data.stateReason}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <span
+                      className={cn(
+                        "inline-block text-[10px] font-medium leading-tight px-2 py-0.5 rounded-md",
+                        "bg-background/95 backdrop-blur-sm border border-border/70 shadow-sm",
+                        "text-muted-foreground text-center",
+                        data?.state === "unblocked" &&
+                          "border-success/30 bg-success/10 text-success",
+                        data?.state === "blocked" &&
+                          "border-destructive/25 bg-destructive/10 text-destructive",
+                      )}
+                    >
+                      {caption}
+                    </span>
+                  )
                 ) : null}
                 {showActions ? (
                   <div className="flex flex-wrap justify-center gap-0.5">

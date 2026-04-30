@@ -113,7 +113,7 @@ function NewProjectForm() {
               />
             </div>
           </CardContent>
-          <CardFooter className="flex gap-2">
+          <CardFooter className="flex gap-2 pt-4">
             <Button
               type="button"
               variant="outline"

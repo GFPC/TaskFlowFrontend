@@ -37,7 +37,15 @@ import {
 
 import { Button } from "@/components/ui/button";
 
-import { ArrowLeft, Plus, Loader2, RefreshCw, LayoutGrid } from "lucide-react";
+import {
+  ArrowLeft,
+  Plus,
+  Loader2,
+  RefreshCw,
+  LayoutGrid,
+  Target,
+  GitBranch,
+} from "lucide-react";
 
 import { TaskNode } from "@/components/graph/task-node";
 
@@ -78,6 +86,13 @@ const edgeTypes = {
   simple: DependencyEdge,
 };
 
+type BlockEdgeState = "blocked" | "unblocked";
+type GraphEdgeData = NonNullable<GraphData["edges"][number]["data"]>;
+type GraphTaskData = GraphData["nodes"][number]["data"];
+
+const LAYER_X_GAP = 320;
+const LAYER_Y_GAP = 180;
+
 function coerceGraphEdgeActions(raw: unknown): DependencyAction[] {
   if (!Array.isArray(raw)) return [];
   const out: DependencyAction[] = [];
@@ -117,7 +132,11 @@ function coerceGraphEdgeActions(raw: unknown): DependencyAction[] {
   return out;
 }
 
-function edgeStrokeForType(t: string | undefined): string {
+function edgeStrokeForType(
+  t: string | undefined,
+  state?: BlockEdgeState,
+): string {
+  if (state === "unblocked") return "var(--success)";
   if (t === "blocks") return "var(--destructive)";
   if (t === "simple") return "var(--muted-foreground)";
   return "var(--primary)";
@@ -141,10 +160,134 @@ function normalizeEdgeType(t: string | undefined): keyof typeof edgeTypes {
   return "dependency";
 }
 
+function getBlockEdgeState(
+  edgeType: keyof typeof edgeTypes,
+  sourceTaskData?: { status?: string },
+): BlockEdgeState | undefined {
+  if (edgeType !== "blocks") return undefined;
+  return sourceTaskData?.status === "completed" ? "unblocked" : "blocked";
+}
+
+function blockEdgeStateLabel(state?: BlockEdgeState): string | undefined {
+  if (state === "unblocked") return "разблокировано";
+  if (state === "blocked") return "заблокировано";
+  return undefined;
+}
+
+function taskName(task?: GraphTaskData): string {
+  return task?.name?.trim() || "задача";
+}
+
+function blockEdgeStateReason(
+  state: BlockEdgeState | undefined,
+  sourceTask?: GraphTaskData,
+  targetTask?: GraphTaskData,
+): string | undefined {
+  if (state === "unblocked") {
+    return `«${taskName(sourceTask)}» выполнена. Связь больше не блокирует «${taskName(targetTask)}».`;
+  }
+  if (state === "blocked") {
+    return `«${taskName(targetTask)}» ждет завершения «${taskName(sourceTask)}».`;
+  }
+  return undefined;
+}
+
+function isNextActionTask(data?: { status?: string; is_ready?: boolean }) {
+  return data?.status === "todo" && data.is_ready === true;
+}
+
+function autoLayoutNodes(nds: Node[], eds: Edge[]): Node[] {
+  const nodeIds = new Set(nds.map((n) => n.id));
+  const incoming = new Map<string, string[]>();
+  const outgoing = new Map<string, string[]>();
+
+  for (const node of nds) {
+    incoming.set(node.id, []);
+    outgoing.set(node.id, []);
+  }
+
+  for (const edge of eds) {
+    if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) continue;
+    outgoing.get(edge.source)?.push(edge.target);
+    incoming.get(edge.target)?.push(edge.source);
+  }
+
+  const layerById = new Map<string, number>();
+  const visiting = new Set<string>();
+
+  const resolveLayer = (id: string): number => {
+    const cached = layerById.get(id);
+    if (cached != null) return cached;
+    if (visiting.has(id)) return 0;
+
+    visiting.add(id);
+    const parents = incoming.get(id) ?? [];
+    const layer =
+      parents.length === 0
+        ? 0
+        : Math.max(...parents.map((parentId) => resolveLayer(parentId))) + 1;
+    visiting.delete(id);
+    layerById.set(id, layer);
+    return layer;
+  };
+
+  for (const node of nds) resolveLayer(node.id);
+
+  const groups = new Map<number, Node[]>();
+  for (const node of nds) {
+    const layer = layerById.get(node.id) ?? 0;
+    groups.set(layer, [...(groups.get(layer) ?? []), node]);
+  }
+
+  const sortedLayers = [...groups.keys()].sort((a, b) => a - b);
+  const maxGroupSize = Math.max(...[...groups.values()].map((g) => g.length), 1);
+  const centerOffset = ((maxGroupSize - 1) * LAYER_Y_GAP) / 2;
+
+  return sortedLayers.flatMap((layer) => {
+    const group = [...(groups.get(layer) ?? [])].sort((a, b) => {
+      const priorityA = ((a.data as { priority?: number })?.priority ?? 0) * -1;
+      const priorityB = ((b.data as { priority?: number })?.priority ?? 0) * -1;
+      return (
+        priorityA - priorityB ||
+        String((a.data as { name?: string })?.name ?? "").localeCompare(
+          String((b.data as { name?: string })?.name ?? ""),
+          "ru",
+        )
+      );
+    });
+
+    const localOffset = ((group.length - 1) * LAYER_Y_GAP) / 2;
+    return group.map((node, index) => ({
+      ...node,
+      position: {
+        x: layer * LAYER_X_GAP,
+        y: index * LAYER_Y_GAP + centerOffset - localOffset,
+      },
+    }));
+  });
+}
+
+function serializeGraphEdgeData(data: unknown): GraphEdgeData {
+  const edgeData = data as GraphEdgeData | undefined;
+  return {
+    dependency_id: edgeData?.dependency_id,
+    description: edgeData?.description,
+    actions: edgeData?.actions,
+  };
+}
+
 function graphToEdges(graphData: GraphData): Edge[] {
+  const nodesById = new Map(graphData.nodes.map((n) => [String(n.id), n]));
+
   return graphData.edges.map((e) => {
     const edgeType = normalizeEdgeType(e.type);
-    const stroke = edgeStrokeForType(edgeType);
+    const state = getBlockEdgeState(
+      edgeType,
+      nodesById.get(String(e.source))?.data,
+    );
+    const sourceTask = nodesById.get(String(e.source))?.data;
+    const targetTask = nodesById.get(String(e.target))?.data;
+    const stroke = edgeStrokeForType(edgeType, state);
     const strokeDasharray = edgeDashForType(edgeType);
     return {
       id: String(e.id),
@@ -163,6 +306,9 @@ function graphToEdges(graphData: GraphData): Edge[] {
         dependency_id: e.data?.dependency_id,
         description: e.data?.description,
         actions: coerceGraphEdgeActions(e.data?.actions),
+        state,
+        stateLabel: blockEdgeStateLabel(state),
+        stateReason: blockEdgeStateReason(state, sourceTask, targetTask),
       },
       style: {
         stroke,
@@ -220,6 +366,7 @@ export default function GraphPage() {
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [snapToGrid, setSnapToGrid] = useState(false);
+  const [showNextActions, setShowNextActions] = useState(false);
 
   const [snapGrid, setSnapGrid] = useState<[number, number]>([20, 20]);
 
@@ -293,7 +440,7 @@ export default function GraphPage() {
         type: normalizeEdgeType(e.type),
         animated: e.animated,
         label: typeof e.label === "string" ? e.label : undefined,
-        data: e.data as GraphData["edges"][0]["data"],
+        data: serializeGraphEdgeData(e.data),
       })),
       viewport: vp,
     }),
@@ -327,6 +474,43 @@ export default function GraphPage() {
     },
     [debouncedSaveLayout, debouncedSaveView],
   );
+
+  const nextActionCount = useMemo(
+    () => nodes.filter((n) => isNextActionTask(n.data as GraphTaskData)).length,
+    [nodes],
+  );
+
+  const displayNodes = useMemo(
+    () =>
+      showNextActions
+        ? nodes.map((node) => ({
+            ...node,
+            data: {
+              ...node.data,
+              focusMode: "next-actions",
+              is_next_action: isNextActionTask(node.data as GraphTaskData),
+            },
+          }))
+        : nodes,
+    [nodes, showNextActions],
+  );
+
+  const handleAutoLayout = useCallback(() => {
+    if (nodes.length === 0) return;
+
+    const layoutedNodes = autoLayoutNodes(nodes, edges);
+    setNodes(layoutedNodes);
+
+    if (canManageGraphRef.current) {
+      void tasksApi
+        .saveGraph(slug, buildGraphPayload(layoutedNodes, edges, viewport))
+        .catch(() => {
+          toast.error("Не удалось сохранить авто-раскладку");
+        });
+    }
+
+    toast.success("Граф разложен по слоям зависимостей");
+  }, [nodes, edges, setNodes, slug, buildGraphPayload, viewport]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -367,6 +551,11 @@ export default function GraphPage() {
         return;
       }
 
+      const state = getBlockEdgeState(
+        "blocks",
+        sourceNode?.data as { status?: string } | undefined,
+      );
+      const stroke = edgeStrokeForType("blocks", state);
       const newEdge: Edge = {
         id: `e${connection.source}-${connection.target}`,
         source: connection.source,
@@ -377,10 +566,20 @@ export default function GraphPage() {
           type: MarkerType.ArrowClosed,
           width: 20,
           height: 20,
-          color: "var(--destructive)",
+          color: stroke,
         },
+        data: {
+          state,
+          stateLabel: blockEdgeStateLabel(state),
+          stateReason: blockEdgeStateReason(
+            state,
+            sourceNode?.data as GraphTaskData | undefined,
+            targetNode?.data as GraphTaskData | undefined,
+          ),
+        },
+        label: undefined,
         style: {
-          stroke: "var(--destructive)",
+          stroke,
           strokeLinecap: "round",
         },
       };
@@ -480,7 +679,7 @@ export default function GraphPage() {
   return (
     <div className="h-[calc(100vh-4rem)] relative bg-gradient-to-b from-muted/30 via-background to-background">
       <ReactFlow
-        nodes={nodes}
+        nodes={displayNodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
@@ -565,6 +764,32 @@ export default function GraphPage() {
 
           <div className="w-fit min-w-[11rem] rounded-2xl border border-border/60 bg-card/90 p-3 shadow-lg backdrop-blur-md">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+              Фокус
+            </p>
+            <div className="flex flex-col gap-2">
+              <Button
+                variant={showNextActions ? "default" : "outline"}
+                size="sm"
+                className="w-full justify-start rounded-xl text-xs h-8"
+                onClick={() => setShowNextActions((v) => !v)}
+              >
+                <Target className="h-3.5 w-3.5 mr-2" />
+                Следующие: {nextActionCount}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start rounded-xl text-xs h-8"
+                onClick={handleAutoLayout}
+              >
+                <GitBranch className="h-3.5 w-3.5 mr-2" />
+                Авто-слои
+              </Button>
+            </div>
+          </div>
+
+          <div className="w-fit min-w-[11rem] rounded-2xl border border-border/60 bg-card/90 p-3 shadow-lg backdrop-blur-md">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
               Сетка
             </p>
             <Button
@@ -590,8 +815,23 @@ export default function GraphPage() {
               <span>Готова к работе</span>
             </div>
             <div className="flex items-center gap-2.5">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full border border-success bg-success/10" />
+              <span>Следующее действие</span>
+            </div>
+            <div className="flex items-center gap-2.5">
               <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-primary/90" />
               <span>Ожидает / в работе</span>
+            </div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground pt-1">
+              Состояние связи
+            </p>
+            <div className="flex items-center gap-2.5">
+              <span className="h-0.5 w-7 shrink-0 rounded-full bg-success" />
+              <span>Разблокировано</span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <span className="h-0.5 w-7 shrink-0 rounded-full bg-destructive" />
+              <span>Заблокировано</span>
             </div>
             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground pt-1">
               Тип связи

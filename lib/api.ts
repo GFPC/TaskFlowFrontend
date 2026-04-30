@@ -1,6 +1,7 @@
-const API_BASE = process.env.NODE_ENV === "production"
-  ? "https://corsair-taskflow.site/api/v1"
-  : "http://localhost:8000/api/v1";
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "/api/v1").replace(
+  /\/$/,
+  "",
+);
 
 interface TokenData {
   access_token: string;
@@ -532,6 +533,38 @@ export const projects = {
     request(`/projects/invitations/${id}/decline`, { method: "POST" }),
 
   stats: (slug: string) => request<ProjectStats>(`/projects/${slug}/stats`),
+
+  notes: (slug: string) => request<Note[]>(`/projects/${slug}/notes`),
+
+  createNote: (slug: string, data: { content: string }) =>
+    request<Note>(`/projects/${slug}/notes`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  taskNotes: (slug: string, taskId: number) =>
+    request<Note[]>(`/projects/${slug}/tasks/${taskId}/notes`),
+
+  createTaskNote: (
+    slug: string,
+    taskId: number,
+    data: { content: string },
+  ) =>
+    request<Note>(`/projects/${slug}/tasks/${taskId}/notes`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateNote: (slug: string, noteId: number, data: { content: string }) =>
+    request<Note>(`/projects/${slug}/notes/${noteId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  deleteNote: (slug: string, noteId: number) =>
+    request<{ message: string }>(`/projects/${slug}/notes/${noteId}`, {
+      method: "DELETE",
+    }),
 };
 
 // ---- TASKS ----
@@ -899,6 +932,18 @@ export interface ProjectStats {
   created_at: string;
   created_by: string;
   team: string;
+}
+
+export interface Note {
+  id: number;
+  scope_type: "project" | "task";
+  project_id: number;
+  task_id?: number | null;
+  author_username: string;
+  author_name?: string | null;
+  content: string;
+  created_at: string;
+  updated_at?: string | null;
 }
 
 export interface Task {
