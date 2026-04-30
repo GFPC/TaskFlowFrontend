@@ -4,7 +4,13 @@ import { useMemo, useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { projects } from "@/lib/api";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -16,7 +22,7 @@ export default function ProjectsPage() {
   const { data: projectsList, isLoading } = useSWR(
     "projects",
     () => projects.list(),
-    { dedupingInterval: 300000 }
+    { dedupingInterval: 300000 },
   );
 
   const filtered = useMemo(() => {
@@ -71,8 +77,12 @@ export default function ProjectsPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
             <Card key={i}>
-              <CardHeader><Skeleton className="h-5 w-40" /></CardHeader>
-              <CardContent><Skeleton className="h-4 w-24" /></CardContent>
+              <CardHeader>
+                <Skeleton className="h-5 w-40" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-4 w-24" />
+              </CardContent>
             </Card>
           ))}
         </div>
@@ -80,8 +90,12 @@ export default function ProjectsPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <FolderKanban className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold text-foreground mb-1">Нет проектов</h3>
-            <p className="text-sm text-muted-foreground mb-4">Создайте проект в одной из ваших команд</p>
+            <h3 className="text-lg font-semibold text-foreground mb-1">
+              Нет проектов
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Создайте проект в одной из ваших команд
+            </p>
             <Button asChild>
               <Link href="/projects/new">Создать проект</Link>
             </Button>
@@ -91,7 +105,9 @@ export default function ProjectsPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-14 text-center">
             <Search className="h-10 w-10 text-muted-foreground mb-3" />
-            <p className="text-sm text-muted-foreground">Нет проектов по запросу «{q.trim()}»</p>
+            <p className="text-sm text-muted-foreground">
+              Нет проектов по запросу «{q.trim()}»
+            </p>
             <Button variant="link" className="mt-2" onClick={() => setQ("")}>
               Сбросить поиск
             </Button>
@@ -105,7 +121,11 @@ export default function ProjectsPage() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base">{project.name}</CardTitle>
-                    <Badge variant={project.status === "active" ? "default" : "secondary"}>
+                    <Badge
+                      variant={
+                        project.status === "active" ? "default" : "secondary"
+                      }
+                    >
                       {project.status === "active" ? "Активный" : "В архиве"}
                     </Badge>
                   </div>
@@ -122,7 +142,9 @@ export default function ProjectsPage() {
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     {project.tasks_count ?? 0} задач
                   </span>
-                  <Badge variant="outline" className="text-xs">{project.team_name}</Badge>
+                  <Badge variant="outline" className="text-xs">
+                    {project.team_name}
+                  </Badge>
                 </CardContent>
               </Card>
             </Link>

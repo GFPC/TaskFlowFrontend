@@ -7,7 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { mutate } from "swr";
@@ -23,7 +30,10 @@ export default function NewTeamPage() {
     if (!name.trim()) return;
     setLoading(true);
     try {
-      const team = await teams.create({ name: name.trim(), description: description.trim() || undefined });
+      const team = await teams.create({
+        name: name.trim(),
+        description: description.trim() || undefined,
+      });
       mutate("teams");
       toast.success("Команда создана!");
       router.push(`/teams/${team.slug}`);
@@ -40,7 +50,9 @@ export default function NewTeamPage() {
       <Card className="border-border/50 shadow-lg">
         <CardHeader>
           <CardTitle className="text-xl">Новая команда</CardTitle>
-          <CardDescription>Создайте команду и пригласите участников</CardDescription>
+          <CardDescription>
+            Создайте команду и пригласите участников
+          </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="flex flex-col gap-4">
@@ -68,7 +80,11 @@ export default function NewTeamPage() {
             </div>
           </CardContent>
           <CardFooter className="flex gap-2">
-            <Button type="button" variant="outline" onClick={() => router.back()}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.back()}
+            >
               Отмена
             </Button>
             <Button type="submit" disabled={loading || !name.trim()}>
