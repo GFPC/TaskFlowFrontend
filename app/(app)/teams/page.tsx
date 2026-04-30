@@ -4,17 +4,21 @@ import useSWR from "swr";
 import Link from "next/link";
 import { teams } from "@/lib/api";
 import { ruProjectsCount } from "@/lib/ru-plurals";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Users, FolderKanban, Plus } from "lucide-react";
 
 export default function TeamsPage() {
-  const { data: teamsList, isLoading } = useSWR(
-    "teams",
-    () => teams.list(),
-    { dedupingInterval: 300000 }
-  );
+  const { data: teamsList, isLoading } = useSWR("teams", () => teams.list(), {
+    dedupingInterval: 300000,
+  });
 
   return (
     <div className="flex flex-col gap-8">
@@ -27,7 +31,8 @@ export default function TeamsPage() {
             Команды
           </h1>
           <p className="max-w-lg text-sm text-muted-foreground">
-            Рабочие группы, участники и проекты — точка входа в совместную работу
+            Рабочие группы, участники и проекты — точка входа в совместную
+            работу
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -61,8 +66,12 @@ export default function TeamsPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Users className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold text-foreground mb-1">Нет команд</h3>
-            <p className="text-sm text-muted-foreground mb-4">Создайте команду или вступите по коду приглашения</p>
+            <h3 className="text-lg font-semibold text-foreground mb-1">
+              Нет команд
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Создайте команду или вступите по коду приглашения
+            </p>
             <div className="flex gap-2">
               <Button variant="outline" asChild>
                 <Link href="/teams/join">Вступить по коду</Link>

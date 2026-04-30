@@ -4,10 +4,21 @@ import { use } from "react";
 import useSWR, { mutate } from "swr";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { teams, projects as projectsApi, ApiError, type TeamDetail } from "@/lib/api";
+import {
+  teams,
+  projects as projectsApi,
+  ApiError,
+  type TeamDetail,
+} from "@/lib/api";
 import { ruProjectsCount } from "@/lib/ru-plurals";
 import { useAuth } from "@/lib/auth-context";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,7 +35,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { useState } from "react";
 import {
@@ -44,24 +61,33 @@ import {
   Clock,
 } from "lucide-react";
 
-export default function TeamDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+export default function TeamDetailPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
   const { slug } = use(params);
   const { user } = useAuth();
   const router = useRouter();
 
-  const { data: team, isLoading, mutate: mutateTeam } = useSWR<TeamDetail>(
-    `team-${slug}`,
-    () => teams.get(slug),
-    { dedupingInterval: 60000 }
-  );
+  const {
+    data: team,
+    isLoading,
+    mutate: mutateTeam,
+  } = useSWR<TeamDetail>(`team-${slug}`, () => teams.get(slug), {
+    dedupingInterval: 60000,
+  });
 
   const { data: teamProjects, isLoading: projectsLoading } = useSWR(
     team ? `team-projects-${slug}` : null,
     () => projectsApi.byTeam(slug, true),
-    { dedupingInterval: 300000 }
+    { dedupingInterval: 300000 },
   );
 
-  const [inviteCodeData, setInviteCodeData] = useState<{ code: string; expires: string } | null>(null);
+  const [inviteCodeData, setInviteCodeData] = useState<{
+    code: string;
+    expires: string;
+  } | null>(null);
   const [copied, setCopied] = useState(false);
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [addMemberUsername, setAddMemberUsername] = useState("");
@@ -90,7 +116,10 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
     if (!addMemberUsername.trim()) return;
     setAddMemberLoading(true);
     try {
-      await teams.addMember(slug, { username: addMemberUsername.trim(), role: addMemberRole });
+      await teams.addMember(slug, {
+        username: addMemberUsername.trim(),
+        role: addMemberRole,
+      });
       toast.success("Участник добавлен");
       mutateTeam();
       setAddMemberOpen(false);
@@ -162,17 +191,23 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
 
   const roleIcon = (role: string) => {
     switch (role) {
-      case "owner": return <Crown className="h-3.5 w-3.5 text-warning" />;
-      case "admin": return <Shield className="h-3.5 w-3.5 text-primary" />;
-      default: return <User className="h-3.5 w-3.5 text-muted-foreground" />;
+      case "owner":
+        return <Crown className="h-3.5 w-3.5 text-warning" />;
+      case "admin":
+        return <Shield className="h-3.5 w-3.5 text-primary" />;
+      default:
+        return <User className="h-3.5 w-3.5 text-muted-foreground" />;
     }
   };
 
   const roleLabel = (role: string) => {
     switch (role) {
-      case "owner": return "Владелец";
-      case "admin": return "Админ";
-      default: return "Участник";
+      case "owner":
+        return "Владелец";
+      case "admin":
+        return "Админ";
+      default:
+        return "Участник";
     }
   };
 
@@ -181,8 +216,12 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">{team.name}</h1>
-          <p className="text-muted-foreground mt-1">{team.description || "Нет описания"}</p>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            {team.name}
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            {team.description || "Нет описания"}
+          </p>
           <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
             <Badge variant="outline" className="gap-1">
               {roleIcon(team.user_role)}
@@ -209,7 +248,9 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
               <DialogHeader>
                 <DialogTitle>Удалить команду?</DialogTitle>
                 <DialogDescription>
-                  {"Введите название команды «"}{team.name}{"» для подтверждения. Это действие нельзя отменить."}
+                  {"Введите название команды «"}
+                  {team.name}
+                  {"» для подтверждения. Это действие нельзя отменить."}
                 </DialogDescription>
               </DialogHeader>
               <Input
@@ -218,7 +259,9 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
                 placeholder={team.name}
               />
               <DialogFooter>
-                <Button variant="outline" onClick={() => setDeleteOpen(false)}>Отмена</Button>
+                <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+                  Отмена
+                </Button>
                 <Button
                   variant="destructive"
                   disabled={deleteConfirm !== team.name}
@@ -236,7 +279,9 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
         <TabsList>
           <TabsTrigger value="projects">Проекты</TabsTrigger>
           <TabsTrigger value="members">Участники</TabsTrigger>
-          {team.can_invite_members && <TabsTrigger value="invite">Приглашения</TabsTrigger>}
+          {team.can_invite_members && (
+            <TabsTrigger value="invite">Приглашения</TabsTrigger>
+          )}
         </TabsList>
 
         {/* Projects Tab */}
@@ -260,7 +305,11 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
           {projectsLoading ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {[1, 2].map((i) => (
-                <Card key={i}><CardHeader><Skeleton className="h-5 w-32" /></CardHeader></Card>
+                <Card key={i}>
+                  <CardHeader>
+                    <Skeleton className="h-5 w-32" />
+                  </CardHeader>
+                </Card>
               ))}
             </div>
           ) : teamProjects?.length === 0 ? (
@@ -278,11 +327,17 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-base">{p.name}</CardTitle>
-                        <Badge variant={p.status === "active" ? "default" : "secondary"}>
+                        <Badge
+                          variant={
+                            p.status === "active" ? "default" : "secondary"
+                          }
+                        >
                           {p.status === "active" ? "Активный" : "В архиве"}
                         </Badge>
                       </div>
-                      <CardDescription>{p.description || "Нет описания"}</CardDescription>
+                      <CardDescription>
+                        {p.description || "Нет описания"}
+                      </CardDescription>
                     </CardHeader>
                     <CardContent className="flex items-center gap-4 text-sm text-muted-foreground">
                       <span>{p.members_count} участн.</span>
@@ -298,7 +353,9 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
         {/* Members Tab */}
         <TabsContent value="members" className="mt-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-foreground">Участники ({team.members.length})</h3>
+            <h3 className="font-semibold text-foreground">
+              Участники ({team.members.length})
+            </h3>
             {team.can_invite_members && (
               <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
                 <DialogTrigger asChild>
@@ -310,7 +367,9 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Добавить участника</DialogTitle>
-                    <DialogDescription>Введите username пользователя</DialogDescription>
+                    <DialogDescription>
+                      Введите username пользователя
+                    </DialogDescription>
                   </DialogHeader>
                   <div className="flex flex-col gap-4">
                     <div className="flex flex-col gap-2">
@@ -323,7 +382,10 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
                     </div>
                     <div className="flex flex-col gap-2">
                       <Label>Роль</Label>
-                      <Select value={addMemberRole} onValueChange={setAddMemberRole}>
+                      <Select
+                        value={addMemberRole}
+                        onValueChange={setAddMemberRole}
+                      >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -335,9 +397,19 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setAddMemberOpen(false)}>Отмена</Button>
-                    <Button onClick={handleAddMember} disabled={addMemberLoading}>
-                      {addMemberLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <Button
+                      variant="outline"
+                      onClick={() => setAddMemberOpen(false)}
+                    >
+                      Отмена
+                    </Button>
+                    <Button
+                      onClick={handleAddMember}
+                      disabled={addMemberLoading}
+                    >
+                      {addMemberLoading && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
                       Добавить
                     </Button>
                   </DialogFooter>
@@ -355,14 +427,17 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
                     <div className="flex items-center gap-3">
                       <Avatar className="h-8 w-8">
                         <AvatarFallback className="text-xs">
-                          {member.first_name[0]}{member.last_name[0]}
+                          {member.first_name[0]}
+                          {member.last_name[0]}
                         </AvatarFallback>
                       </Avatar>
                       <div>
                         <p className="text-sm font-medium text-foreground">
                           {member.first_name} {member.last_name}
                         </p>
-                        <p className="text-xs text-muted-foreground">@{member.username}</p>
+                        <p className="text-xs text-muted-foreground">
+                          @{member.username}
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -415,7 +490,9 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Код приглашения</CardTitle>
-                <CardDescription>Поделитесь кодом для вступления в команду (действует 1 час)</CardDescription>
+                <CardDescription>
+                  Поделитесь кодом для вступления в команду (действует 1 час)
+                </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 {inviteCodeData ? (
@@ -423,8 +500,16 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
                     <code className="flex-1 rounded-lg bg-muted px-4 py-2 font-mono text-sm tracking-wider text-foreground">
                       {inviteCodeData.code}
                     </code>
-                    <Button variant="outline" size="icon" onClick={handleCopyCode}>
-                      {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handleCopyCode}
+                    >
+                      {copied ? (
+                        <Check className="h-4 w-4" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
                     </Button>
                     <Button
                       variant="outline"
@@ -435,7 +520,10 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
                     </Button>
                   </div>
                 ) : (
-                  <Button variant="outline" onClick={() => handleGetInviteCode()}>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleGetInviteCode()}
+                  >
                     Получить код приглашения
                   </Button>
                 )}

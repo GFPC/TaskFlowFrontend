@@ -75,7 +75,12 @@ export default function DashboardPage() {
                 быстрый доступ к рабочим пространствам.
               </p>
             </div>
-            <Button variant="outline" size="sm" className="shrink-0 gap-1.5" asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-1.5"
+              asChild
+            >
               <Link href="/projects/new">
                 <Plus className="h-4 w-4" />
                 Новый проект
@@ -273,7 +278,9 @@ export default function DashboardPage() {
                 <Card className="h-full cursor-pointer border-border/60 shadow-sm transition-all hover:border-primary/35 hover:shadow-md">
                   <CardHeader>
                     <div className="flex items-center justify-between gap-2">
-                      <CardTitle className="text-base">{project.name}</CardTitle>
+                      <CardTitle className="text-base">
+                        {project.name}
+                      </CardTitle>
                       <Badge
                         variant={
                           project.status === "active" ? "default" : "secondary"

@@ -349,10 +349,14 @@ export default function GraphPage() {
     dedupingInterval: 30_000,
   });
 
-  const { data: graphMeta } = useSWR("task-graph-meta", () => metaApi.taskGraph(), {
-    dedupingInterval: 600_000,
-    revalidateOnFocus: false,
-  });
+  const { data: graphMeta } = useSWR(
+    "task-graph-meta",
+    () => metaApi.taskGraph(),
+    {
+      dedupingInterval: 600_000,
+      revalidateOnFocus: false,
+    },
+  );
 
   const [nodes, setNodes, onNodesChangeState] = useNodesState([]);
 
@@ -615,8 +619,8 @@ export default function GraphPage() {
         canDeleteTask(
           project.user_role,
           {
-            creator_username:
-              (selectedTask as { creator_username?: string }).creator_username,
+            creator_username: (selectedTask as { creator_username?: string })
+              .creator_username,
           },
           user?.username,
         )
@@ -712,7 +716,7 @@ export default function GraphPage() {
           variant={BackgroundVariant.Dots}
           gap={22}
           size={1.15}
-          color="hsl(var(--muted-foreground) / 0.18)"
+          color="var(--muted-foreground)"
           className="[&>*]:opacity-100"
         />
         <Controls
@@ -752,14 +756,6 @@ export default function GraphPage() {
                 Задача
               </Button>
             ) : null}
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-xl gap-1"
-              onClick={() => mutate()}
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
           </div>
 
           <div className="w-fit min-w-[11rem] rounded-2xl border border-border/60 bg-card/90 p-3 shadow-lg backdrop-blur-md">

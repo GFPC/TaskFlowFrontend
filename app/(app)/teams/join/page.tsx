@@ -6,7 +6,14 @@ import { teams, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2, UserPlus } from "lucide-react";
 import { mutate } from "swr";
@@ -40,7 +47,9 @@ export default function JoinTeamPage() {
           <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <UserPlus className="h-5 w-5" />
           </div>
-          <CardTitle className="text-xl text-center">Вступить в команду</CardTitle>
+          <CardTitle className="text-xl text-center">
+            Вступить в команду
+          </CardTitle>
           <CardDescription className="text-center">
             Введите код приглашения, который вам дали
           </CardDescription>
@@ -60,10 +69,19 @@ export default function JoinTeamPage() {
             </div>
           </CardContent>
           <CardFooter className="flex gap-2">
-            <Button type="button" variant="outline" onClick={() => router.back()} className="flex-1">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.back()}
+              className="flex-1"
+            >
               Отмена
             </Button>
-            <Button type="submit" disabled={loading || !code.trim()} className="flex-1">
+            <Button
+              type="submit"
+              disabled={loading || !code.trim()}
+              className="flex-1"
+            >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Вступить
             </Button>

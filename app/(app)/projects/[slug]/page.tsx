@@ -153,9 +153,7 @@ export default function ProjectDetailPage({
 
   const [taskDetailOpen, setTaskDetailOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [taskPendingDelete, setTaskPendingDelete] = useState<Task | null>(
-    null,
-  );
+  const [taskPendingDelete, setTaskPendingDelete] = useState<Task | null>(null);
   const [taskSearch, setTaskSearch] = useState("");
 
   // Add Member dialog (участники команды → проект)
@@ -337,12 +335,7 @@ export default function ProjectDetailPage({
 
   const handleStatusChange = async (taskId: number, status: string) => {
     const t = tasksList?.find((x) => x.id === taskId);
-    if (
-      !project ||
-      !t ||
-      !canChangeTaskStatus(project.user_role)
-    )
-      return;
+    if (!project || !t || !canChangeTaskStatus(project.user_role)) return;
     try {
       await tasks.changeStatus(slug, taskId, status);
       toast.success("Статус обновлен");
@@ -466,9 +459,7 @@ export default function ProjectDetailPage({
 
   const userCanAssignTasks = canAssignProjectTasks(project.user_role);
   const userCanEditTaskMeta = canEditTaskFieldsAdmin(project.user_role);
-  const userCanEditTaskDescription = canEditTaskDescription(
-    project.user_role,
-  );
+  const userCanEditTaskDescription = canEditTaskDescription(project.user_role);
 
   const roleIcon = (role: string) => {
     const r = normalizeProjectUserRole(role) ?? role;
@@ -801,142 +792,150 @@ export default function ProjectDetailPage({
                 </div>
                 {project.can_create_tasks &&
                   canCreateTasksInProject(project.user_role) && (
-              <Dialog open={createTaskOpen} onOpenChange={setCreateTaskOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" className="gap-1 shrink-0 w-full sm:w-auto">
-                    <Plus className="h-4 w-4" />
-                    Новая задача
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-lg">
-                  <DialogHeader>
-                    <DialogTitle>Создать задачу</DialogTitle>
-                    <DialogDescription className="text-left">
-                      {(() => {
-                        const hints = [
-                          !userCanEditTaskMeta &&
-                            "Приоритет и дедлайн настраивают владелец и менеджер.",
-                          !userCanAssignTasks &&
-                            "Исполнителя назначают владелец и менеджер.",
-                          !userCanEditTaskDescription &&
-                            "Описание при создании недоступно для вашей роли.",
-                        ].filter(Boolean) as string[];
-                        return hints.length > 0
-                          ? hints.join(" ")
-                          : "Исполнитель выбирается из участников проекта.";
-                      })()}
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-2">
-                      <Label>Название</Label>
-                      <Input
-                        value={taskName}
-                        onChange={(e) => setTaskName(e.target.value)}
-                        placeholder="Название задачи"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Label>Описание</Label>
-                      <Textarea
-                        value={taskDescription}
-                        onChange={(e) => setTaskDescription(e.target.value)}
-                        placeholder="Описание задачи"
-                        rows={3}
-                        disabled={!userCanEditTaskDescription}
-                      />
-                    </div>
-                    <div
-                      className={
-                        userCanAssignTasks || userCanEditTaskMeta
-                          ? "grid grid-cols-2 gap-3"
-                          : "grid grid-cols-1 gap-3"
-                      }
+                    <Dialog
+                      open={createTaskOpen}
+                      onOpenChange={setCreateTaskOpen}
                     >
-                      <div className="flex flex-col gap-2">
-                        <Label>Исполнитель</Label>
-                        <Select
-                          value={taskAssignee || "none"}
-                          onValueChange={(v) =>
-                            setTaskAssignee(v === "none" ? "" : v)
-                          }
-                          disabled={!userCanAssignTasks}
+                      <DialogTrigger asChild>
+                        <Button
+                          size="sm"
+                          className="gap-1 shrink-0 w-full sm:w-auto"
                         >
-                          <SelectTrigger>
-                            <SelectValue
-                              placeholder={
-                                userCanAssignTasks
-                                  ? "Не назначен"
-                                  : "Недоступно для вашей роли"
-                              }
+                          <Plus className="h-4 w-4" />
+                          Новая задача
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-lg">
+                        <DialogHeader>
+                          <DialogTitle>Создать задачу</DialogTitle>
+                          <DialogDescription className="text-left">
+                            {(() => {
+                              const hints = [
+                                !userCanEditTaskMeta &&
+                                  "Приоритет и дедлайн настраивают владелец и менеджер.",
+                                !userCanAssignTasks &&
+                                  "Исполнителя назначают владелец и менеджер.",
+                                !userCanEditTaskDescription &&
+                                  "Описание при создании недоступно для вашей роли.",
+                              ].filter(Boolean) as string[];
+                              return hints.length > 0
+                                ? hints.join(" ")
+                                : "Исполнитель выбирается из участников проекта.";
+                            })()}
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="flex flex-col gap-4">
+                          <div className="flex flex-col gap-2">
+                            <Label>Название</Label>
+                            <Input
+                              value={taskName}
+                              onChange={(e) => setTaskName(e.target.value)}
+                              placeholder="Название задачи"
                             />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Не назначен</SelectItem>
-                            {project.members
-                              .filter((m) => m.is_active)
-                              .map((m) => (
-                                <SelectItem
-                                  key={m.username}
-                                  value={m.username}
-                                >
-                                  {m.first_name} {m.last_name} (@
-                                  {m.username})
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        <Label>Приоритет</Label>
-                        <Select
-                          value={
-                            userCanEditTaskMeta ? taskPriority : "1"
-                          }
-                          onValueChange={setTaskPriority}
-                          disabled={!userCanEditTaskMeta}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="0">Низкий</SelectItem>
-                            <SelectItem value="1">Средний</SelectItem>
-                            <SelectItem value="2">Высокий</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Label>Дедлайн</Label>
-                      <Input
-                        type="datetime-local"
-                        value={taskDeadline}
-                        onChange={(e) => setTaskDeadline(e.target.value)}
-                        disabled={!userCanEditTaskMeta}
-                      />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button
-                      variant="outline"
-                      onClick={() => setCreateTaskOpen(false)}
-                    >
-                      Отмена
-                    </Button>
-                    <Button
-                      onClick={handleCreateTask}
-                      disabled={createTaskLoading || !taskName.trim()}
-                    >
-                      {createTaskLoading && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      )}
-                      Создать
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-                )}
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <Label>Описание</Label>
+                            <Textarea
+                              value={taskDescription}
+                              onChange={(e) =>
+                                setTaskDescription(e.target.value)
+                              }
+                              placeholder="Описание задачи"
+                              rows={3}
+                              disabled={!userCanEditTaskDescription}
+                            />
+                          </div>
+                          <div
+                            className={
+                              userCanAssignTasks || userCanEditTaskMeta
+                                ? "grid grid-cols-2 gap-3"
+                                : "grid grid-cols-1 gap-3"
+                            }
+                          >
+                            <div className="flex flex-col gap-2">
+                              <Label>Исполнитель</Label>
+                              <Select
+                                value={taskAssignee || "none"}
+                                onValueChange={(v) =>
+                                  setTaskAssignee(v === "none" ? "" : v)
+                                }
+                                disabled={!userCanAssignTasks}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue
+                                    placeholder={
+                                      userCanAssignTasks
+                                        ? "Не назначен"
+                                        : "Недоступно для вашей роли"
+                                    }
+                                  />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">
+                                    Не назначен
+                                  </SelectItem>
+                                  {project.members
+                                    .filter((m) => m.is_active)
+                                    .map((m) => (
+                                      <SelectItem
+                                        key={m.username}
+                                        value={m.username}
+                                      >
+                                        {m.first_name} {m.last_name} (@
+                                        {m.username})
+                                      </SelectItem>
+                                    ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <Label>Приоритет</Label>
+                              <Select
+                                value={userCanEditTaskMeta ? taskPriority : "1"}
+                                onValueChange={setTaskPriority}
+                                disabled={!userCanEditTaskMeta}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="0">Низкий</SelectItem>
+                                  <SelectItem value="1">Средний</SelectItem>
+                                  <SelectItem value="2">Высокий</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <Label>Дедлайн</Label>
+                            <Input
+                              type="datetime-local"
+                              value={taskDeadline}
+                              onChange={(e) => setTaskDeadline(e.target.value)}
+                              disabled={!userCanEditTaskMeta}
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button
+                            variant="outline"
+                            onClick={() => setCreateTaskOpen(false)}
+                          >
+                            Отмена
+                          </Button>
+                          <Button
+                            onClick={handleCreateTask}
+                            disabled={createTaskLoading || !taskName.trim()}
+                          >
+                            {createTaskLoading && (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            )}
+                            Создать
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  )}
               </div>
             </div>
           </div>
@@ -958,19 +957,29 @@ export default function ProjectDetailPage({
                 <p className="text-sm text-muted-foreground pb-4">Нет задач</p>
                 {project.can_create_tasks &&
                   canCreateTasksInProject(project.user_role) && (
-                  <Button size="sm" className="gap-1" onClick={() => setCreateTaskOpen(true)}>
-                    <Plus className="h-4 w-4" />
-                    Создать первую задачу
-                  </Button>
-                )}
+                    <Button
+                      size="sm"
+                      className="gap-1"
+                      onClick={() => setCreateTaskOpen(true)}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Создать первую задачу
+                    </Button>
+                  )}
               </CardContent>
             </Card>
           ) : filteredTasks.length === 0 ? (
             <Card>
               <CardContent className="py-10 text-center">
                 <ListFilter className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Нет задач по запросу</p>
-                <Button variant="link" className="mt-1" onClick={() => setTaskSearch("")}>
+                <p className="text-sm text-muted-foreground">
+                  Нет задач по запросу
+                </p>
+                <Button
+                  variant="link"
+                  className="mt-1"
+                  onClick={() => setTaskSearch("")}
+                >
                   Сбросить поиск
                 </Button>
               </CardContent>
@@ -1064,10 +1073,14 @@ export default function ProjectDetailPage({
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="todo">К выполнению</SelectItem>
-                            <SelectItem value="in_progress">В работе</SelectItem>
+                            <SelectItem value="in_progress">
+                              В работе
+                            </SelectItem>
                             <SelectItem value="review">На проверке</SelectItem>
                             <SelectItem value="completed">Выполнена</SelectItem>
-                            <SelectItem value="blocked">Заблокирована</SelectItem>
+                            <SelectItem value="blocked">
+                              Заблокирована
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       ) : (
@@ -1077,10 +1090,14 @@ export default function ProjectDetailPage({
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="todo">К выполнению</SelectItem>
-                            <SelectItem value="in_progress">В работе</SelectItem>
+                            <SelectItem value="in_progress">
+                              В работе
+                            </SelectItem>
                             <SelectItem value="review">На проверке</SelectItem>
                             <SelectItem value="completed">Выполнена</SelectItem>
-                            <SelectItem value="blocked">Заблокирована</SelectItem>
+                            <SelectItem value="blocked">
+                              Заблокирована
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       )}
@@ -1147,8 +1164,8 @@ export default function ProjectDetailPage({
                     <DialogTitle>Добавить из команды</DialogTitle>
                     <DialogDescription>
                       Только участники команды «{project.team_name}», ещё не
-                      входящие в этот проект. Нажмите на строку, чтобы
-                      добавить с выбранной ролью.
+                      входящие в этот проект. Нажмите на строку, чтобы добавить
+                      с выбранной ролью.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="flex flex-col gap-4">
