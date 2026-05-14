@@ -81,7 +81,7 @@ function shouldRefresh(): boolean {
 export class ApiError extends Error {
   status: number;
   detail: string;
-  /** Стабильный код ошибки с бэкенда (например DEPENDENCY_CYCLE). */
+  /** Stable backend error code, for example DEPENDENCY_CYCLE. */
   errorCode?: string;
 
   constructor(status: number, detail: string, errorCode?: string) {
@@ -128,7 +128,7 @@ function parseErrorBody(body: unknown): { detail: string; errorCode?: string } {
   return { detail: JSON.stringify(body), errorCode };
 }
 
-/** Подписи для известных error_code; иначе показываем detail с сервера. */
+/** User-facing messages for known backend error codes. */
 export const KNOWN_API_ERROR_MESSAGES: Record<string, string> = {
   DEPENDENCY_CYCLE: "Нельзя создать цикл в зависимостях.",
   TASK_NOT_READY: "Задача ещё не готова к работе: сначала завершите блокирующие задачи.",
@@ -150,12 +150,10 @@ export function formatApiError(err: unknown): string {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  // Proactively refresh token if about to expire
   if (shouldRefresh()) {
     try {
       await refreshTokens();
     } catch {
-      // Will be caught by 401 handler below
     }
   }
 
@@ -174,7 +172,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers,
   });
 
-  // If 401, try refresh once
   if (res.status === 401 && tokens?.refresh_token) {
     try {
       await refreshTokens();
@@ -209,7 +206,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new ApiError(res.status, detail, errorCode);
   }
 
-  // Handle empty responses (204, etc.)
   const text = await res.text();
   if (!text) return {} as T;
   return JSON.parse(text);
@@ -730,7 +726,7 @@ export const tasks = {
     request(`/projects/${projectSlug}/tasks/stats/user/${username}`),
 };
 
-// ---- META (справочники) ----
+// ---- META ----
 export interface TaskGraphMeta {
   dependency_types?: Array<{
     code: string;
@@ -967,9 +963,7 @@ export interface Task {
   position_x: number;
   position_y: number;
   is_ready: boolean;
-  /** Задачи-блокировщики (незакрытые предковые зависимости), если отдаёт API. */
   blocking_task_ids?: number[];
-  /** Человекочитаемая причина «не готова к работе». */
   blocked_reason?: string | null;
   metadata?: Record<string, unknown>;
 }

@@ -37,10 +37,9 @@ export function ThemeToggle() {
   const saveTheme = async (mode: "dark" | "light" | "system") => {
     try {
       await users.updateTheme({ mode });
-      // Refresh user data to update theme_preferences in auth context
       refreshUser();
-    } catch (error) {
-      console.error("Failed to save theme preference:", error);
+    } catch {
+      setTheme(mode);
     }
   };
 

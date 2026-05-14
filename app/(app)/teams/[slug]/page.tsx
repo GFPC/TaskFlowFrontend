@@ -213,7 +213,6 @@ export default function TeamDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
@@ -284,7 +283,6 @@ export default function TeamDetailPage({
           )}
         </TabsList>
 
-        {/* Projects Tab */}
         <TabsContent value="projects" className="mt-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-foreground">
@@ -350,7 +348,6 @@ export default function TeamDetailPage({
           )}
         </TabsContent>
 
-        {/* Members Tab */}
         <TabsContent value="members" className="mt-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-foreground">
@@ -484,7 +481,6 @@ export default function TeamDetailPage({
           </div>
         </TabsContent>
 
-        {/* Invitations Tab */}
         {team.can_invite_members && (
           <TabsContent value="invite" className="mt-4">
             <Card>

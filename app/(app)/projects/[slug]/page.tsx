@@ -109,7 +109,7 @@ export default function ProjectDetailPage({
   const searchParams = useSearchParams();
   const openedFromTaskQuery = useRef<string | null>(null);
 
-  /** Без username в ключе SWR отдаётся кэш проекта «чужого» пользователя после смены аккаунта. */
+  /** Keep SWR caches separate when users switch accounts. */
   const swrIdentity = user?.username ?? "__";
 
   const {
@@ -142,7 +142,6 @@ export default function ProjectDetailPage({
     { dedupingInterval: 300000 },
   );
 
-  // Create Task dialog
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
   const [taskName, setTaskName] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
@@ -156,7 +155,6 @@ export default function ProjectDetailPage({
   const [taskPendingDelete, setTaskPendingDelete] = useState<Task | null>(null);
   const [taskSearch, setTaskSearch] = useState("");
 
-  // Add Member dialog (участники команды → проект)
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [memberRole, setMemberRole] = useState("developer");
   const [addMemberPage, setAddMemberPage] = useState(1);
@@ -250,7 +248,6 @@ export default function ProjectDetailPage({
     }
   }, [searchParams, tasksList, slug, router]);
 
-  // Delete dialog
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [editOpen, setEditOpen] = useState(false);
@@ -542,7 +539,6 @@ export default function ProjectDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
@@ -709,7 +705,6 @@ export default function ProjectDetailPage({
         </DialogContent>
       </Dialog>
 
-      {/* Stats */}
       {taskStats && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Card>
@@ -766,7 +761,6 @@ export default function ProjectDetailPage({
           <TabsTrigger value="members">Участники</TabsTrigger>
         </TabsList>
 
-        {/* Tasks Tab */}
         <TabsContent value="tasks" className="mt-4">
           <div className="flex flex-col gap-3 mb-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1145,7 +1139,6 @@ export default function ProjectDetailPage({
           </Card>
         </TabsContent>
 
-        {/* Members Tab */}
         <TabsContent value="members" className="mt-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-foreground">

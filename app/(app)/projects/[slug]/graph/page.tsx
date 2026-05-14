@@ -325,7 +325,7 @@ export default function GraphPage() {
   const slug = params.slug as string;
   const { user } = useAuth();
 
-  /** Ключ совпадает со страницей проекта — общий кэш; username ловит смену аккаунта. */
+  /** Keep SWR caches separate when users switch accounts. */
   const swrIdentity = user?.username ?? "__";
 
   const { data: project } = useSWR<ProjectDetail>(
@@ -603,7 +603,6 @@ export default function GraphPage() {
     setSelectedTask(node.data);
   }, []);
 
-  // Handle delete key press
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (

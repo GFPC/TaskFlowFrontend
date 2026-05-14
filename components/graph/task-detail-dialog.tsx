@@ -93,7 +93,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onUpdate: () => void;
-  /** Карточка связанной задачи (граф / список проекта). */
+  /** Opens a related task from the graph or project list. */
   onOpenRelatedTask?: (taskId: number) => void;
 }
 

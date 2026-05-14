@@ -50,7 +50,6 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-10">
-      {/* Приветствие + сводка */}
       <section className="relative overflow-hidden rounded-2xl border border-border/60 bg-card/75 shadow-sm backdrop-blur-md">
         <div
           className="pointer-events-none absolute inset-0 opacity-100"
@@ -155,7 +154,6 @@ export default function DashboardPage() {
 
       <MyTasksFeed />
 
-      {/* Teams */}
       <section>
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -231,7 +229,6 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {/* Projects */}
       <section>
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
