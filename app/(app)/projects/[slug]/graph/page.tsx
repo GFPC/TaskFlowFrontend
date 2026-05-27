@@ -196,6 +196,18 @@ function isNextActionTask(data?: { status?: string; is_ready?: boolean }) {
   return data?.status === "todo" && data.is_ready === true;
 }
 
+function isEditableKeyboardTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName.toLowerCase();
+  return (
+    tag === "input" ||
+    tag === "textarea" ||
+    tag === "select" ||
+    target.isContentEditable ||
+    target.closest("[role='textbox'], [role='combobox']") !== null
+  );
+}
+
 function autoLayoutNodes(nds: Node[], eds: Edge[]): Node[] {
   const nodeIds = new Set(nds.map((n) => n.id));
   const incoming = new Map<string, string[]>();
@@ -334,9 +346,13 @@ export default function GraphPage() {
     { dedupingInterval: 60_000 },
   );
   const userRole = project?.user_role;
-  const canManageGraph = canManageTaskGraph(userRole);
+  const canManageGraph =
+    project?.can_manage_task_graph ?? canManageTaskGraph(userRole);
   const canCreateTask =
-    !!project?.can_create_tasks && canCreateTasksInProject(userRole);
+    project?.can_create_tasks ?? canCreateTasksInProject(userRole);
+  const canDeleteTasks =
+    project?.can_delete_tasks ??
+    canDeleteTask(userRole, { creator_username: "" }, user?.username);
 
   const canManageGraphRef = useRef(canManageGraph);
   canManageGraphRef.current = canManageGraph;
@@ -607,16 +623,10 @@ export default function GraphPage() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
         event.key === "Delete" &&
+        !isEditableKeyboardTarget(event.target) &&
         selectedTask &&
         project &&
-        canDeleteTask(
-          project.user_role,
-          {
-            creator_username: (selectedTask as { creator_username?: string })
-              .creator_username,
-          },
-          user?.username,
-        )
+        canDeleteTasks
       ) {
         event.preventDefault();
         event.stopPropagation();
@@ -632,7 +642,7 @@ export default function GraphPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedTask, nodes, project, user?.username]);
+  }, [selectedTask, nodes, project, canDeleteTasks]);
 
   if (graphLoading && !graphData) {
     return (
@@ -645,16 +655,14 @@ export default function GraphPage() {
 
   const handleDeleteNode = async () => {
     if (!nodeToDelete || !project) return;
+    debouncedSaveLayout.cancel();
+    debouncedSaveView.cancel();
     const taskData = nodeToDelete.data as {
       id: number;
       creator_username?: string;
     };
     if (
-      !canDeleteTask(
-        project.user_role,
-        { creator_username: taskData.creator_username },
-        user?.username,
-      )
+      !canDeleteTasks
     ) {
       toast.error("Удалять задачи могут только владелец и менеджер проекта.");
       setShowDeleteDialog(false);
@@ -665,10 +673,18 @@ export default function GraphPage() {
       const taskId = taskData.id;
       await tasksApi.delete(slug, taskId);
       toast.success("Задача удалена");
+      setNodes((nds) =>
+        nds.filter((n) => (n.data as { id?: number }).id !== taskId),
+      );
+      setEdges((eds) =>
+        eds.filter(
+          (e) => e.source !== String(taskId) && e.target !== String(taskId),
+        ),
+      );
       setShowDeleteDialog(false);
       setNodeToDelete(null);
       setSelectedTask(null);
-      mutate();
+      await mutate();
     } catch (err: unknown) {
       toast.error(formatApiError(err));
     }
@@ -701,7 +717,7 @@ export default function GraphPage() {
           strokeLinecap: "round",
         }}
         className="[&_.react-flow__edge-path]:stroke-linecap-round"
-        deleteKeyCode={canManageGraph ? ["Delete"] : null}
+        deleteKeyCode={null}
         snapToGrid={snapToGrid}
         snapGrid={snapGrid}
       >
@@ -833,6 +849,20 @@ export default function GraphPage() {
           open={!!selectedTask}
           onClose={() => setSelectedTask(null)}
           onUpdate={() => mutate()}
+          onDelete={(taskId) => {
+            debouncedSaveLayout.cancel();
+            debouncedSaveView.cancel();
+            setNodes((nds) =>
+              nds.filter((n) => (n.data as { id?: number }).id !== taskId),
+            );
+            setEdges((eds) =>
+              eds.filter(
+                (e) => e.source !== String(taskId) && e.target !== String(taskId),
+              ),
+            );
+            setSelectedTask(null);
+            void mutate();
+          }}
           onOpenRelatedTask={(taskId) => {
             const node = nodes.find(
               (n) => (n.data as { id?: number }).id === taskId,

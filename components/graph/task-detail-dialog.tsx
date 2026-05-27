@@ -93,6 +93,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onUpdate: () => void;
+  onDelete?: (taskId: number) => void;
   /** Opens a related task from the graph or project list. */
   onOpenRelatedTask?: (taskId: number) => void;
 }
@@ -115,6 +116,7 @@ export function TaskDetailDialog({
   open,
   onClose,
   onUpdate,
+  onDelete,
   onOpenRelatedTask,
 }: Props) {
   const { user } = useAuth();
@@ -131,6 +133,11 @@ export function TaskDetailDialog({
 
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [projectRole, setProjectRole] = useState<string | undefined>(undefined);
+  const [projectPermissions, setProjectPermissions] = useState<{
+    canEditTasks: boolean;
+    canDeleteTasks: boolean;
+    canChangeStatus: boolean;
+  } | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -154,10 +161,19 @@ export function TaskDetailDialog({
       .then((p) => {
         setMembers(p.members.filter((m) => m.is_active));
         setProjectRole(p.user_role);
+        setProjectPermissions({
+          canEditTasks: p.can_edit_tasks ?? canEditTaskFieldsAdmin(p.user_role),
+          canDeleteTasks:
+            p.can_delete_tasks ??
+            canDeleteTask(p.user_role, { creator_username: "" }, undefined),
+          canChangeStatus:
+            p.can_change_task_status ?? canChangeTaskStatus(p.user_role),
+        });
       })
       .catch(() => {
         setMembers([]);
         setProjectRole(undefined);
+        setProjectPermissions(null);
       });
   }, [open, projectSlug]);
 
@@ -172,10 +188,14 @@ export function TaskDetailDialog({
     setAssigneeUsername(getAssigneeKey(t));
   }, [open, resolved, task]);
 
-  const canAssign = canAssignProjectTasks(projectRole);
-  const canAdminFields = canEditTaskFieldsAdmin(projectRole);
-  const canDesc = canEditTaskDescription(projectRole);
-  const canStatus = canChangeTaskStatus(projectRole);
+  const canAssign =
+    projectPermissions?.canEditTasks ?? canAssignProjectTasks(projectRole);
+  const canAdminFields =
+    projectPermissions?.canEditTasks ?? canEditTaskFieldsAdmin(projectRole);
+  const canDesc =
+    projectPermissions?.canEditTasks ?? canEditTaskDescription(projectRole);
+  const canStatus =
+    projectPermissions?.canChangeStatus ?? canChangeTaskStatus(projectRole);
   const statusOnlyRole = isProjectStatusOnlyRole(projectRole);
   const canMutateSomething =
     canAdminFields || canAssign || canDesc || canStatus;
@@ -183,11 +203,13 @@ export function TaskDetailDialog({
   const creatorUsername =
     (base as Task).creator_username ?? (base as { creator?: string }).creator;
 
-  const deleteAllowed = canDeleteTask(
-    projectRole,
-    { creator_username: creatorUsername },
-    user?.username,
-  );
+  const deleteAllowed =
+    projectPermissions?.canDeleteTasks ??
+    canDeleteTask(
+      projectRole,
+      { creator_username: creatorUsername },
+      user?.username,
+    );
 
   async function handleSave(statusOverride?: string) {
     if (!canMutateSomething) {
@@ -244,10 +266,11 @@ export function TaskDetailDialog({
     try {
       await tasksApi.delete(projectSlug, task.id);
       toast.success("Задача удалена");
-      onUpdate();
+      if (onDelete) onDelete(task.id);
+      else onUpdate();
       onClose();
-    } catch {
-      toast.error("Ошибка удаления");
+    } catch (err: unknown) {
+      toast.error(formatApiError(err));
     } finally {
       setShowDeleteDialog(false);
     }

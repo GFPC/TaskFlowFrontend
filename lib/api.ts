@@ -896,6 +896,10 @@ export interface ProjectDetail extends Project {
   can_edit_project: boolean;
   can_delete_project: boolean;
   can_create_tasks: boolean;
+  can_edit_tasks?: boolean;
+  can_delete_tasks?: boolean;
+  can_change_task_status?: boolean;
+  can_manage_task_graph?: boolean;
   settings?: {
     default_task_status?: string;
     notifications_enabled?: boolean;

@@ -109,7 +109,6 @@ export default function ProjectDetailPage({
   const searchParams = useSearchParams();
   const openedFromTaskQuery = useRef<string | null>(null);
 
-  /** Keep SWR caches separate when users switch accounts. */
   const swrIdentity = user?.username ?? "__";
 
   const {
@@ -289,22 +288,20 @@ export default function ProjectDetailPage({
 
   const handleCreateTask = async () => {
     if (!taskName.trim() || !project) return;
-    if (!canCreateTasksInProject(project.user_role)) return;
+    if (!userCanCreateTasks) return;
     setCreateTaskLoading(true);
     try {
+      const canEditTasks =
+        project.can_edit_tasks ?? canEditTaskFieldsAdmin(project.user_role);
       const assigneeOk =
-        canAssignProjectTasks(project.user_role) &&
-        taskAssignee &&
-        taskAssignee !== "none";
-      const canMeta = canEditTaskFieldsAdmin(project.user_role);
-      const canDesc = canEditTaskDescription(project.user_role);
+        canEditTasks && taskAssignee && taskAssignee !== "none";
       await tasks.create(slug, {
         name: taskName.trim(),
-        ...(canDesc && taskDescription.trim()
+        ...(canEditTasks && taskDescription.trim()
           ? { description: taskDescription.trim() }
           : {}),
         assignee_username: assigneeOk ? taskAssignee : undefined,
-        ...(canMeta
+        ...(canEditTasks
           ? {
               priority: parseInt(taskPriority, 10),
               ...(taskDeadline
@@ -332,7 +329,12 @@ export default function ProjectDetailPage({
 
   const handleStatusChange = async (taskId: number, status: string) => {
     const t = tasksList?.find((x) => x.id === taskId);
-    if (!project || !t || !canChangeTaskStatus(project.user_role)) return;
+    if (
+      !project ||
+      !t ||
+      !userCanChangeTaskStatus
+    )
+      return;
     try {
       await tasks.changeStatus(slug, taskId, status);
       toast.success("Статус обновлен");
@@ -344,7 +346,12 @@ export default function ProjectDetailPage({
   };
 
   const confirmDeleteTask = async () => {
-    if (!taskPendingDelete) return;
+    if (
+      !taskPendingDelete ||
+      !project ||
+      !userCanDeleteTasks
+    )
+      return;
     const deletedId = taskPendingDelete.id;
     try {
       await tasks.delete(slug, deletedId);
@@ -454,9 +461,18 @@ export default function ProjectDetailPage({
     );
   }
 
-  const userCanAssignTasks = canAssignProjectTasks(project.user_role);
-  const userCanEditTaskMeta = canEditTaskFieldsAdmin(project.user_role);
-  const userCanEditTaskDescription = canEditTaskDescription(project.user_role);
+  const userCanCreateTasks =
+    project.can_create_tasks ?? canCreateTasksInProject(project.user_role);
+  const userCanEditTasks =
+    project.can_edit_tasks ?? canEditTaskFieldsAdmin(project.user_role);
+  const userCanAssignTasks = userCanEditTasks;
+  const userCanEditTaskMeta = userCanEditTasks;
+  const userCanEditTaskDescription = userCanEditTasks;
+  const userCanDeleteTasks =
+    project.can_delete_tasks ??
+    canDeleteTask(project.user_role, { creator_username: "" }, user?.username);
+  const userCanChangeTaskStatus =
+    project.can_change_task_status ?? canChangeTaskStatus(project.user_role);
 
   const roleIcon = (role: string) => {
     const r = normalizeProjectUserRole(role) ?? role;
@@ -784,8 +800,7 @@ export default function ProjectDetailPage({
                     aria-label="Поиск задач"
                   />
                 </div>
-                {project.can_create_tasks &&
-                  canCreateTasksInProject(project.user_role) && (
+                {userCanCreateTasks && (
                     <Dialog
                       open={createTaskOpen}
                       onOpenChange={setCreateTaskOpen}
@@ -949,8 +964,7 @@ export default function ProjectDetailPage({
               <CardContent className="py-12 text-center">
                 <ListTodo className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground pb-4">Нет задач</p>
-                {project.can_create_tasks &&
-                  canCreateTasksInProject(project.user_role) && (
+                {userCanCreateTasks && (
                     <Button
                       size="sm"
                       className="gap-1"
@@ -1057,7 +1071,7 @@ export default function ProjectDetailPage({
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => e.stopPropagation()}
                     >
-                      {canChangeTaskStatus(project.user_role) ? (
+                      {userCanChangeTaskStatus ? (
                         <Select
                           value={task.status}
                           onValueChange={(s) => handleStatusChange(task.id, s)}
@@ -1095,11 +1109,7 @@ export default function ProjectDetailPage({
                           </SelectContent>
                         </Select>
                       )}
-                      {canDeleteTask(
-                        project.user_role,
-                        { creator_username: task.creator_username },
-                        user?.username,
-                      ) && (
+                      {userCanDeleteTasks && (
                         <Button
                           variant="ghost"
                           size="icon"
