@@ -29,10 +29,14 @@ function canManageNote(
   projectRole?: string,
 ) {
   const role = projectRole?.toLowerCase();
+  if (role === "analyst" || role === "accountant" || role === "observer") {
+    return false;
+  }
   return (
     note.author_username === currentUsername ||
     role === "owner" ||
-    role === "manager"
+    role === "manager" ||
+    role === "senior_manager"
   );
 }
 

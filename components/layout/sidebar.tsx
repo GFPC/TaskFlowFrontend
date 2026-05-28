@@ -13,16 +13,18 @@ import {
   LogOut,
   Menu,
   X,
+  Shield,
 } from "lucide-react";
 
 import { useAuth } from "@/lib/auth-context";
+import { useUserPermissions } from "@/lib/user-permissions";
 
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 import { useState, useEffect } from "react";
 
-const navigation = [
+const baseNavigation = [
   { name: "Дашборд", href: "/dashboard", icon: LayoutDashboard },
   { name: "Команды", href: "/teams", icon: Users },
   { name: "Проекты", href: "/projects", icon: FolderKanban },
@@ -32,8 +34,16 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  const { canManageRoles } = useUserPermissions(user);
   const [isOpen, setIsOpen] = useState(false);
+
+  const navigation = canManageRoles
+    ? [
+        ...baseNavigation,
+        { name: "Роли", href: "/admin/roles", icon: Shield },
+      ]
+    : baseNavigation;
 
   useEffect(() => {
     setIsOpen(false);

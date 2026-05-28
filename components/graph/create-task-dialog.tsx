@@ -26,6 +26,7 @@ import {
   canCreateTasksInProject,
   canEditTaskFieldsAdmin,
   canEditTaskDescription,
+  isProjectReadOnlyRole,
 } from "@/lib/project-permissions";
 import { toast } from "sonner";
 
@@ -62,11 +63,24 @@ export function CreateTaskDialog({
     projectsApi
       .get(projectSlug)
       .then((p) => {
-        setCanCreateTask(canCreateTasksInProject(p.user_role));
+        const readOnly = isProjectReadOnlyRole(p.user_role);
+        setCanCreateTask(
+          !readOnly &&
+            (p.can_create_tasks ?? canCreateTasksInProject(p.user_role)),
+        );
         setMembers(p.members.filter((m) => m.is_active));
-        setCanAssign(canAssignProjectTasks(p.user_role));
-        setCanEditMeta(canEditTaskFieldsAdmin(p.user_role));
-        setCanEditDesc(canEditTaskDescription(p.user_role));
+        setCanAssign(
+          !readOnly &&
+            (p.can_edit_tasks ?? canAssignProjectTasks(p.user_role)),
+        );
+        setCanEditMeta(
+          !readOnly &&
+            (p.can_edit_tasks ?? canEditTaskFieldsAdmin(p.user_role)),
+        );
+        setCanEditDesc(
+          !readOnly &&
+            (p.can_edit_tasks ?? canEditTaskDescription(p.user_role)),
+        );
       })
       .catch(() => {
         toast.error("Не удалось загрузить проект");

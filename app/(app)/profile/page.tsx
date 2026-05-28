@@ -2,7 +2,8 @@
 
 import { useAuth } from "@/lib/auth-context";
 import { useEffect, useState } from "react";
-import { users, formatApiError } from "@/lib/api";
+import { users, formatApiError, API_VERSION } from "@/lib/api";
+import { globalRoleLabel } from "@/lib/roles";
 import {
   Card,
   CardContent,
@@ -79,7 +80,9 @@ export default function ProfilePage() {
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Профиль</h1>
-        <p className="text-muted-foreground">Управление аккаунтом</p>
+        <p className="text-muted-foreground">
+          Управление аккаунтом · API v{API_VERSION}
+        </p>
       </div>
 
       <Card>
@@ -97,6 +100,14 @@ export default function ProfilePage() {
           <div>
             <Label>Username</Label>
             <Input value={user.username} disabled className="bg-muted" />
+          </div>
+          <div>
+            <Label>Глобальная роль</Label>
+            <Input
+              value={globalRoleLabel(user.role_name ?? user.role)}
+              disabled
+              className="bg-muted"
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

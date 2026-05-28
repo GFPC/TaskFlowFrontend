@@ -1,3 +1,6 @@
+/** TaskFlow REST API version (see /docs). */
+export const API_VERSION = "1.1.0";
+
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "/api/v1").replace(
   /\/$/,
   "",
@@ -647,10 +650,40 @@ export const tasks = {
       method: "DELETE",
     }),
 
-  events: (projectSlug: string, taskId: number, limit?: number) =>
-    request<TaskEvent[]>(
-      `/projects/${projectSlug}/tasks/${taskId}/events${limit ? `?limit=${limit}` : ""}`,
-    ),
+  events: (
+    projectSlug: string,
+    taskId: number,
+    params?: { limit?: number; offset?: number; event_type?: string },
+  ) => {
+    const sp = new URLSearchParams();
+    if (params?.limit != null) sp.set("limit", String(params.limit));
+    if (params?.offset != null) sp.set("offset", String(params.offset));
+    if (params?.event_type) sp.set("event_type", params.event_type);
+    const qs = sp.toString();
+    return request<TaskEvent[]>(
+      `/projects/${projectSlug}/tasks/${taskId}/events${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  projectHistory: (
+    projectSlug: string,
+    params?: {
+      limit?: number;
+      offset?: number;
+      event_type?: string;
+      task_id?: number;
+    },
+  ) => {
+    const sp = new URLSearchParams();
+    if (params?.limit != null) sp.set("limit", String(params.limit));
+    if (params?.offset != null) sp.set("offset", String(params.offset));
+    if (params?.event_type) sp.set("event_type", params.event_type);
+    if (params?.task_id != null) sp.set("task_id", String(params.task_id));
+    const qs = sp.toString();
+    return request<TaskEvent[]>(
+      `/projects/${projectSlug}/tasks/history${qs ? `?${qs}` : ""}`,
+    );
+  },
 
   graph: (projectSlug: string) =>
     request<GraphData>(`/projects/${projectSlug}/tasks/graph`),
@@ -726,6 +759,63 @@ export const tasks = {
     request(`/projects/${projectSlug}/tasks/stats/user/${username}`),
 };
 
+// ---- REPORTS ----
+export const reports = {
+  overview: (
+    projectSlug: string,
+    params?: { date_from?: string; date_to?: string },
+  ) => {
+    const sp = new URLSearchParams();
+    if (params?.date_from) sp.set("date_from", params.date_from);
+    if (params?.date_to) sp.set("date_to", params.date_to);
+    const qs = sp.toString();
+    return request<ReportOverview>(
+      `/projects/${projectSlug}/reports/overview${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  throughput: (
+    projectSlug: string,
+    params?: { date_from?: string; date_to?: string },
+  ) => {
+    const sp = new URLSearchParams();
+    if (params?.date_from) sp.set("date_from", params.date_from);
+    if (params?.date_to) sp.set("date_to", params.date_to);
+    const qs = sp.toString();
+    return request<ReportThroughput>(
+      `/projects/${projectSlug}/reports/throughput${qs ? `?${qs}` : ""}`,
+    );
+  },
+};
+
+// ---- ROLES (admin) ----
+export const rolesApi = {
+  list: () => request<Role[]>("/roles/"),
+
+  get: (roleId: number) => request<Role>(`/roles/${roleId}`),
+
+  create: (data: RoleCreate) =>
+    request<Role>("/roles/", { method: "POST", body: JSON.stringify(data) }),
+
+  update: (roleId: number, data: RoleUpdate) =>
+    request<Role>(`/roles/${roleId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  delete: (roleId: number) =>
+    request<{ message: string }>(`/roles/${roleId}`, { method: "DELETE" }),
+};
+
+// ---- ADMIN ----
+export const admin = {
+  changeUserRole: (userId: number, role_name: string) =>
+    request<{ message: string }>(`/admin/users/${userId}/role`, {
+      method: "PUT",
+      body: JSON.stringify({ role_name }),
+    }),
+};
+
 // ---- META ----
 export interface TaskGraphMeta {
   dependency_types?: Array<{
@@ -741,8 +831,28 @@ export interface TaskGraphMeta {
   }>;
 }
 
+export interface TaskEventTypeMeta {
+  code: string;
+  label?: string;
+  display_name?: string;
+}
+
+export interface PermissionMeta {
+  code: string;
+  label?: string;
+  display_name?: string;
+  description?: string;
+}
+
 export const meta = {
   taskGraph: () => request<TaskGraphMeta>("/meta/task-graph"),
+
+  taskEventTypes: () =>
+    request<TaskEventTypeMeta[]>("/meta/task-event-types"),
+
+  userRoles: () => request<Role[]>("/meta/user-roles"),
+
+  permissions: () => request<PermissionMeta[]>("/meta/permissions"),
 };
 
 // ---- HELPER ----
@@ -756,7 +866,9 @@ export interface User {
   username: string;
   email?: string;
   email_verified?: boolean;
+  /** Global role display name (UserProfileResponse.role / role_name). */
   role?: string;
+  role_name?: string;
   is_active?: boolean;
   is_superuser?: boolean;
   created_at?: string;
@@ -1004,11 +1116,65 @@ export interface DependencyAction {
 
 export interface TaskEvent {
   id: number;
+  task_id?: number | null;
+  user_id?: number;
   user_username: string;
   event_type: string;
-  old_value?: string;
-  new_value?: string;
+  field?: string | null;
+  old_value?: string | null;
+  new_value?: string | null;
+  metadata?: Record<string, unknown> | null;
   created_at: string;
+}
+
+export interface ReportOverview {
+  project_slug: string;
+  date_from?: string | null;
+  date_to?: string | null;
+  total_tasks: number;
+  open_tasks: number;
+  completed_tasks: number;
+  overdue_tasks: number;
+  created_in_period: number;
+  completed_in_period: number;
+  avg_cycle_time_hours?: number | null;
+  by_status: Record<string, number>;
+}
+
+export interface ThroughputPoint {
+  day: string;
+  created: number;
+  completed: number;
+}
+
+export interface ReportThroughput {
+  project_slug: string;
+  date_from?: string | null;
+  date_to?: string | null;
+  points: ThroughputPoint[];
+}
+
+export interface Role {
+  id: number;
+  name: string;
+  description?: string | null;
+  permissions?: string | null;
+  permissions_dict?: Record<string, boolean> | null;
+  priority?: number;
+}
+
+export interface RoleCreate {
+  name: string;
+  description?: string | null;
+  permissions?: string | null;
+  priority?: number;
+}
+
+export interface RoleUpdate {
+  name?: string | null;
+  description?: string | null;
+  permissions?: string | null;
+  priority?: number | null;
 }
 
 export interface GraphData {

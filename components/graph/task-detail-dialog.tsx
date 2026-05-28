@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   tasks as tasksApi,
   projects as projectsApi,
@@ -45,11 +46,14 @@ import type { ProjectMember } from "@/lib/api";
 import {
   canAssignProjectTasks,
   canEditTaskFieldsAdmin,
-  canEditTaskDescription,
   canChangeTaskStatus,
   isProjectStatusOnlyRole,
+  isProjectReadOnlyRole,
   canDeleteTask,
+  resolveCanEditTask,
+  resolveCanChangeTaskStatus,
 } from "@/lib/project-permissions";
+import { TaskHistoryPanel } from "@/components/tasks/task-history-panel";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
 import {
@@ -60,7 +64,6 @@ import {
   Loader2,
   Lock,
   ArrowRight,
-  MessageSquareText,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { NotesPanel } from "@/components/notes/notes-panel";
@@ -188,15 +191,42 @@ export function TaskDetailDialog({
     setAssigneeUsername(getAssigneeKey(t));
   }, [open, resolved, task]);
 
+  const taskForPerm = {
+    assignee_username: assigneeUsername || getAssigneeKey(base as Task),
+    assignee: getAssigneeKey(base as Task),
+  };
+
   const canAssign =
-    projectPermissions?.canEditTasks ?? canAssignProjectTasks(projectRole);
-  const canAdminFields =
-    projectPermissions?.canEditTasks ?? canEditTaskFieldsAdmin(projectRole);
-  const canDesc =
-    projectPermissions?.canEditTasks ?? canEditTaskDescription(projectRole);
-  const canStatus =
-    projectPermissions?.canChangeStatus ?? canChangeTaskStatus(projectRole);
-  const statusOnlyRole = isProjectStatusOnlyRole(projectRole);
+    projectPermissions?.canEditTasks != null
+      ? canAssignProjectTasks(projectRole) &&
+        resolveCanEditTask(
+          projectPermissions.canEditTasks,
+          projectRole,
+          taskForPerm,
+          user?.username,
+        )
+      : canAssignProjectTasks(projectRole);
+  const canAdminFields = resolveCanEditTask(
+    projectPermissions?.canEditTasks,
+    projectRole,
+    taskForPerm,
+    user?.username,
+  );
+  const canDesc = resolveCanEditTask(
+    projectPermissions?.canEditTasks,
+    projectRole,
+    taskForPerm,
+    user?.username,
+  );
+  const canStatus = resolveCanChangeTaskStatus(
+    projectPermissions?.canChangeStatus,
+    projectRole,
+    taskForPerm,
+    user?.username,
+  );
+  const statusOnlyRole =
+    isProjectStatusOnlyRole(projectRole) && !isProjectReadOnlyRole(projectRole);
+  const readOnlyRole = isProjectReadOnlyRole(projectRole);
   const canMutateSomething =
     canAdminFields || canAssign || canDesc || canStatus;
 
@@ -249,7 +279,7 @@ export function TaskDetailDialog({
       if (Object.keys(payload).length > 0) {
         await tasksApi.update(projectSlug, task.id, payload);
       }
-      if (canChangeTaskStatus(projectRole) && statusToUse !== orig.status) {
+      if (canStatus && statusToUse !== orig.status) {
         await tasksApi.changeStatus(projectSlug, task.id, statusToUse);
       }
       toast.success("Задача обновлена");
@@ -299,8 +329,13 @@ export function TaskDetailDialog({
           </DialogTitle>
           {statusOnlyRole && !loadingDetail && (
             <DialogDescription>
-              Поля задачи редактируют владелец и менеджер. Вы можете менять
-              статус (в т. ч. кнопками ниже).
+              Поля задачи редактируют владелец, менеджер и старший менеджер. Вы
+              можете менять статус.
+            </DialogDescription>
+          )}
+          {readOnlyRole && !loadingDetail && (
+            <DialogDescription>
+              Ваша роль в проекте — только просмотр.
             </DialogDescription>
           )}
         </DialogHeader>
@@ -312,7 +347,14 @@ export function TaskDetailDialog({
           </div>
         )}
 
-        <div className="space-y-4">
+        <Tabs defaultValue="details" className="w-full">
+          <TabsList className="w-full grid grid-cols-3">
+            <TabsTrigger value="details">Детали</TabsTrigger>
+            <TabsTrigger value="history">История</TabsTrigger>
+            <TabsTrigger value="notes">Заметки</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="details" className="space-y-4 mt-4">
           <div>
             <Label>Название</Label>
             <Input
@@ -568,27 +610,6 @@ export function TaskDetailDialog({
 
           <Separator />
 
-          <div className="space-y-3">
-            <div>
-              <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <MessageSquareText className="h-4 w-4 text-primary" />
-                Заметки
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Комментарии и рабочие пометки по этой задаче.
-              </p>
-            </div>
-            <NotesPanel
-              projectSlug={projectSlug}
-              taskId={task.id}
-              currentUsername={user?.username}
-              projectRole={projectRole}
-              compact
-            />
-          </div>
-
-          <Separator />
-
           {canStatus && (
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
@@ -624,8 +645,6 @@ export function TaskDetailDialog({
               </div>
             </div>
           )}
-
-          <Separator />
 
           {!canMutateSomething ? (
             <DialogFooter>
@@ -663,8 +682,29 @@ export function TaskDetailDialog({
               </Button>
             </div>
           )}
+          </TabsContent>
 
-          <AlertDialog
+          <TabsContent value="history" className="mt-4">
+            <TaskHistoryPanel
+              projectSlug={projectSlug}
+              taskId={task.id}
+              initialEvents={taskDetail?.events}
+              compact
+            />
+          </TabsContent>
+
+          <TabsContent value="notes" className="mt-4">
+            <NotesPanel
+              projectSlug={projectSlug}
+              taskId={task.id}
+              currentUsername={user?.username}
+              projectRole={projectRole}
+              compact
+            />
+          </TabsContent>
+        </Tabs>
+
+        <AlertDialog
             open={showDeleteDialog}
             onOpenChange={setShowDeleteDialog}
           >
@@ -684,7 +724,6 @@ export function TaskDetailDialog({
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-        </div>
       </DialogContent>
     </Dialog>
   );

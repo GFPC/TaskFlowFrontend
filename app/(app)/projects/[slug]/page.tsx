@@ -80,6 +80,11 @@ import {
   ListFilter,
   Pencil,
   MessageSquareText,
+  History,
+  BarChart3,
+  GraduationCap,
+  Calculator,
+  TrendingUp,
 } from "lucide-react";
 import {
   canAssignProjectTasks,
@@ -89,9 +94,14 @@ import {
   canEditTaskFieldsAdmin,
   canEditTaskDescription,
   normalizeProjectUserRole,
+  resolveCanChangeTaskStatus,
 } from "@/lib/project-permissions";
 import { TaskDetailDialog } from "@/components/graph/task-detail-dialog";
 import { NotesPanel } from "@/components/notes/notes-panel";
+import { ProjectHistoryPanel } from "@/components/tasks/task-history-panel";
+import { ProjectRoleSelectItems } from "@/components/projects/project-role-select-items";
+import { useUserPermissions } from "@/lib/user-permissions";
+import { projectRoleLabel } from "@/lib/roles";
 
 function isTaskOverdue(t: Task): boolean {
   if (!t.deadline || t.status === "completed") return false;
@@ -105,6 +115,7 @@ export default function ProjectDetailPage({
 }) {
   const { slug } = use(params);
   const { user } = useAuth();
+  const { canViewReports } = useUserPermissions(user);
   const router = useRouter();
   const searchParams = useSearchParams();
   const openedFromTaskQuery = useRef<string | null>(null);
@@ -329,12 +340,14 @@ export default function ProjectDetailPage({
 
   const handleStatusChange = async (taskId: number, status: string) => {
     const t = tasksList?.find((x) => x.id === taskId);
-    if (
-      !project ||
-      !t ||
-      !userCanChangeTaskStatus
-    )
-      return;
+    if (!project || !t) return;
+    const canChange = resolveCanChangeTaskStatus(
+      project.can_change_task_status,
+      project.user_role,
+      t,
+      user?.username,
+    );
+    if (!canChange) return;
     try {
       await tasks.changeStatus(slug, taskId, status);
       toast.success("Статус обновлен");
@@ -472,7 +485,16 @@ export default function ProjectDetailPage({
     project.can_delete_tasks ??
     canDeleteTask(project.user_role, { creator_username: "" }, user?.username);
   const userCanChangeTaskStatus =
-    project.can_change_task_status ?? canChangeTaskStatus(project.user_role);
+    project.can_change_task_status ??
+    canChangeTaskStatus(project.user_role, undefined, user?.username);
+
+  const canChangeStatusForTask = (task: Task) =>
+    resolveCanChangeTaskStatus(
+      project.can_change_task_status,
+      project.user_role,
+      task,
+      user?.username,
+    );
 
   const roleIcon = (role: string) => {
     const r = normalizeProjectUserRole(role) ?? role;
@@ -480,9 +502,16 @@ export default function ProjectDetailPage({
       case "owner":
         return <Crown className="h-3.5 w-3.5 text-warning" />;
       case "manager":
+      case "senior_manager":
         return <Shield className="h-3.5 w-3.5 text-primary" />;
       case "developer":
         return <Code2 className="h-3.5 w-3.5 text-chart-2" />;
+      case "intern":
+        return <GraduationCap className="h-3.5 w-3.5 text-chart-3" />;
+      case "analyst":
+        return <TrendingUp className="h-3.5 w-3.5 text-chart-4" />;
+      case "accountant":
+        return <Calculator className="h-3.5 w-3.5 text-chart-5" />;
       case "observer":
         return <Eye className="h-3.5 w-3.5 text-muted-foreground" />;
       default:
@@ -490,21 +519,7 @@ export default function ProjectDetailPage({
     }
   };
 
-  const roleLabel = (role: string) => {
-    const r = normalizeProjectUserRole(role) ?? role;
-    switch (r) {
-      case "owner":
-        return "Владелец";
-      case "manager":
-        return "Менеджер";
-      case "developer":
-        return "Разработчик";
-      case "observer":
-        return "Наблюдатель";
-      default:
-        return role;
-    }
-  };
+  const roleLabel = (role: string) => projectRoleLabel(normalizeProjectUserRole(role) ?? role);
 
   const statusLabel = (s: string) => {
     switch (s) {
@@ -601,6 +616,14 @@ export default function ProjectDetailPage({
               Граф
             </Link>
           </Button>
+          {canViewReports && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/projects/${slug}/reports`} className="gap-1">
+                <BarChart3 className="h-4 w-4" />
+                Отчёты
+              </Link>
+            </Button>
+          )}
           {project.can_delete_project && (
             <>
               <Button
@@ -774,6 +797,7 @@ export default function ProjectDetailPage({
         <TabsList>
           <TabsTrigger value="tasks">Задачи</TabsTrigger>
           <TabsTrigger value="notes">Заметки</TabsTrigger>
+          <TabsTrigger value="history">История</TabsTrigger>
           <TabsTrigger value="members">Участники</TabsTrigger>
         </TabsList>
 
@@ -1071,7 +1095,7 @@ export default function ProjectDetailPage({
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => e.stopPropagation()}
                     >
-                      {userCanChangeTaskStatus ? (
+                      {canChangeStatusForTask(task) ? (
                         <Select
                           value={task.status}
                           onValueChange={(s) => handleStatusChange(task.id, s)}
@@ -1149,6 +1173,40 @@ export default function ProjectDetailPage({
           </Card>
         </TabsContent>
 
+        <TabsContent value="history" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <History className="h-4 w-4 text-primary" />
+                История проекта
+              </CardTitle>
+              <CardDescription>
+                События по задачам проекта, включая удалённые задачи
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ProjectHistoryPanel
+                projectSlug={slug}
+                onOpenTask={(taskId) => {
+                  const fromList = tasksList?.find((t) => t.id === taskId);
+                  if (fromList) {
+                    setSelectedTask(fromList);
+                    setTaskDetailOpen(true);
+                    return;
+                  }
+                  void tasks
+                    .get(slug, taskId)
+                    .then((d) => {
+                      setSelectedTask(d);
+                      setTaskDetailOpen(true);
+                    })
+                    .catch(() => toast.error("Не удалось загрузить задачу"));
+                }}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="members" className="mt-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-foreground">
@@ -1179,9 +1237,7 @@ export default function ProjectDetailPage({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="developer">Разработчик</SelectItem>
-                          <SelectItem value="manager">Менеджер</SelectItem>
-                          <SelectItem value="observer">Наблюдатель</SelectItem>
+                          <ProjectRoleSelectItems />
                         </SelectContent>
                       </Select>
                     </div>
@@ -1345,13 +1401,7 @@ export default function ProjectDetailPage({
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="developer">
-                                Разработчик
-                              </SelectItem>
-                              <SelectItem value="manager">Менеджер</SelectItem>
-                              <SelectItem value="observer">
-                                Наблюдатель
-                              </SelectItem>
+                              <ProjectRoleSelectItems />
                             </SelectContent>
                           </Select>
                         );

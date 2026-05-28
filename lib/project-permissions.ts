@@ -21,53 +21,78 @@ function n(role: string | undefined | null): string | undefined {
   return normalizeProjectUserRole(role);
 }
 
-export function canAssignProjectTasks(userRole: string | undefined): boolean {
-  const r = n(userRole);
-  return r === "owner" || r === "manager";
+function isOwnTask(
+  task: { assignee_username?: string | null; assignee?: string | null },
+  currentUsername?: string | null,
+): boolean {
+  const assignee = String(
+    task.assignee_username ?? task.assignee ?? "",
+  ).trim();
+  const user = String(currentUsername ?? "").trim();
+  return assignee !== "" && assignee === user;
 }
 
-export function canEditTaskFieldsAdmin(userRole: string | undefined): boolean {
-  const r = n(userRole);
-  return r === "owner" || r === "manager";
+function isManagerLike(role: string | undefined): boolean {
+  const r = n(role);
+  return r === "owner" || r === "manager" || r === "senior_manager";
+}
+
+export function isProjectReadOnlyRole(role: string | undefined): boolean {
+  const r = n(role);
+  return r === "analyst" || r === "accountant" || r === "observer";
+}
+
+export function canAssignProjectTasks(userRole: string | undefined): boolean {
+  return isManagerLike(userRole);
+}
+
+export function canEditTaskFieldsAdmin(
+  userRole: string | undefined,
+  task?: { assignee_username?: string | null; assignee?: string | null },
+  currentUsername?: string | null,
+): boolean {
+  if (isManagerLike(userRole)) return true;
+  if (n(userRole) === "intern" && task && currentUsername) {
+    return isOwnTask(task, currentUsername);
+  }
+  return false;
 }
 
 export function canCreateTasksInProject(userRole: string | undefined): boolean {
-  const r = n(userRole);
-  return r === "owner" || r === "manager";
+  return isManagerLike(userRole);
 }
 
 export function canManageTaskGraph(userRole: string | undefined): boolean {
-  const r = n(userRole);
-  return r === "owner" || r === "manager";
+  return isManagerLike(userRole);
 }
 
-export function canEditTaskDescription(userRole: string | undefined): boolean {
-  const r = n(userRole);
-  return r === "owner" || r === "manager";
+export function canEditTaskDescription(
+  userRole: string | undefined,
+  task?: { assignee_username?: string | null; assignee?: string | null },
+  currentUsername?: string | null,
+): boolean {
+  return canEditTaskFieldsAdmin(userRole, task, currentUsername);
 }
 
-/**
- * Any project role can change task status; field and graph edits are stricter.
- */
 export function canChangeTaskStatus(
   userRole: string | undefined,
-  _task?: { assignee_username?: string | null; assignee?: string | null },
-  _currentUsername?: string | null,
+  task?: { assignee_username?: string | null; assignee?: string | null },
+  currentUsername?: string | null,
 ): boolean {
   const r = n(userRole);
-  return (
-    r === "owner" ||
-    r === "manager" ||
-    r === "developer" ||
-    r === "observer"
-  );
+  if (isManagerLike(userRole)) return true;
+  if (r === "developer") return true;
+  if (r === "intern" && task && currentUsername) {
+    return isOwnTask(task, currentUsername);
+  }
+  return false;
 }
 
 export function isProjectStatusOnlyRole(
   userRole: string | undefined,
 ): boolean {
   const r = n(userRole);
-  return r === "developer" || r === "observer";
+  return r === "developer";
 }
 
 export function isProjectObserver(userRole: string | undefined): boolean {
@@ -79,6 +104,36 @@ export function canDeleteTask(
   _task: { creator_username?: string },
   _currentUsername: string | undefined,
 ): boolean {
-  const r = n(userRole);
-  return r === "owner" || r === "manager";
+  return isManagerLike(userRole);
+}
+
+/** Resolve effective edit permission using backend flag + role rules. */
+export function resolveCanEditTask(
+  backendFlag: boolean | undefined,
+  userRole: string | undefined,
+  task: { assignee_username?: string | null; assignee?: string | null },
+  currentUsername?: string | null,
+): boolean {
+  if (isProjectReadOnlyRole(userRole)) return false;
+  if (backendFlag === false) return false;
+  if (backendFlag === true) {
+    if (n(userRole) === "intern") return isOwnTask(task, currentUsername);
+    return canEditTaskFieldsAdmin(userRole, task, currentUsername);
+  }
+  return canEditTaskFieldsAdmin(userRole, task, currentUsername);
+}
+
+export function resolveCanChangeTaskStatus(
+  backendFlag: boolean | undefined,
+  userRole: string | undefined,
+  task: { assignee_username?: string | null; assignee?: string | null },
+  currentUsername?: string | null,
+): boolean {
+  if (isProjectReadOnlyRole(userRole)) return false;
+  if (backendFlag === false) return false;
+  if (backendFlag === true) {
+    if (n(userRole) === "intern") return isOwnTask(task, currentUsername);
+    return canChangeTaskStatus(userRole, task, currentUsername);
+  }
+  return canChangeTaskStatus(userRole, task, currentUsername);
 }
